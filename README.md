@@ -1,3 +1,7 @@
+## Screenshot
+
+![Manille game board](ManilleCardGame.png)
+
 The most popular card game in Flanders, Belgium, is now available — with source code — for the world, for the first time!
 
 With this app, learning Manille becomes easy.
