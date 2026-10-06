@@ -1066,6 +1066,68 @@ class BoardUITests(unittest.TestCase):
         self.assertIn("Play a legal 5-point 10 first", board.log.get("1.0", "end"))
         self.assertNotIn("Lead a low-value card", board.log.get("1.0", "end"))
 
+    def test_computer_avoids_trump_chosen_by_opponents_and_logs_preference(self):
+        board = self.create_board(self.root, human=False, seed=42)
+        board.deal.choose_trump("Hearts")  # Dealer 0 is an opponent of player 1.
+        trump, discard = Card("Hearts", "10"), Card("Clubs", "7")
+        board.deal.hands[1] = [trump, discard]
+        board.step()
+        self.assertEqual(board.deal.trick, [(1, discard)])
+        self.assertIn(trump, board.deal.hands[1])
+        self.assertIn("Opponents chose trump: prefer a legal non-trump card.",
+                      board.log.get("1.0", "end"))
+
+    def test_opponents_trump_remains_legal_and_clickable_for_human(self):
+        board = self.create_board(self.root, human=True, seed=42)
+        board.PLAY_SECONDS = 0.01
+        board.deal.dealer = 1
+        board.deal.choose_trump("Hearts")
+        board.deal.leader = 0
+        trump, discard = Card("Hearts", "10"), Card("Clubs", "7")
+        board.deal.hands[0] = [trump, discard]
+        self.root.update()
+        board.render()
+        self.assertEqual([hit[-1] for hit in board.hits], [trump, discard])
+        x1, y1, x2, y2, _ = board.hits[0]
+        board.click_card(SimpleNamespace(x=(x1 + x2) / 2, y=(y1 + y2) / 2))
+        self.wait_for_collection(board)
+        self.assertEqual(board.deal.trick, [(0, trump)])
+
+    def test_computer_uses_observed_opponent_trump_to_avoid_later_lead(self):
+        board = self.create_board(self.root, human=False, seed=42)
+        deal = board.deal
+        deal.choose_trump("Hearts")
+        deal.leader = 0
+        deal.trick = [(0, Card("Clubs", "Ace"))]
+        deal.hands[1] = [Card("Hearts", "7"), Card("Diamonds", "7")]
+        board.step()  # Opponent's legal trump records the vulnerable suit.
+        self.assertEqual(deal.trumped_suits, [{"Clubs"}, set()])
+        deal.trick = []
+        deal.leader = 2
+        risky, safe = Card("Clubs", "10"), Card("Diamonds", "8")
+        deal.hands[2] = [risky, safe]
+        board.step()
+        self.assertEqual(deal.trick, [(2, safe)])
+        self.assertIn(risky, deal.hands[2])
+        self.assertIn("Avoid suits previously trumped by opponents.", board.log.get("1.0", "end"))
+
+    def test_avoided_suits_remain_legal_and_clickable_for_humans(self):
+        board = self.create_board(self.root, human=True, seed=42)
+        board.PLAY_SECONDS = 0.01
+        deal = board.deal
+        deal.choose_trump("Hearts")
+        deal.leader = 0
+        deal.trumped_suits[0].add("Clubs")
+        risky, safe = Card("Clubs", "10"), Card("Diamonds", "7")
+        deal.hands[0] = [risky, safe]
+        self.root.update()
+        board.render()
+        self.assertEqual([hit[-1] for hit in board.hits], [risky, safe])
+        x1, y1, x2, y2, _ = board.hits[0]
+        board.click_card(SimpleNamespace(x=(x1 + x2) / 2, y=(y1 + y2) / 2))
+        self.wait_for_collection(board)
+        self.assertEqual(deal.trick, [(0, risky)])
+
     def test_null_computer_leads_highest_value_and_logs_strategy(self):
         board = self.create_board(self.root, human=False, seed=42)
         board.deal.choose_trump(NULL_TRUMP)

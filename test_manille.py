@@ -16,13 +16,145 @@ from manille import (
     legal_cards,
     make_deck,
     match_points,
+    record_trumped_suit,
+    team_of,
     winning_play,
     zero_point_players,
     SUITS,
+    RANKS,
 )
 
 
 class ManilleTests(unittest.TestCase):
+    def test_opponents_of_trump_chooser_prefer_non_trumps_at_every_seat(self):
+        trump_ten, discard = Card("Hearts", "10"), Card("Clubs", "7")
+        for player in range(4):
+            for chooser in range(4):
+                with self.subTest(player=player, chooser=chooser):
+                    expected = discard if team_of(player) != team_of(chooser) else trump_ten
+                    self.assertEqual(choose_computer_card(
+                        player, [trump_ten, discard], [], "Hearts", chooser,
+                    ), expected)
+            partner_winning = [((player - 2) % 4, Card("Diamonds", "10")),
+                               ((player - 1) % 4, Card("Diamonds", "7"))]
+            self.assertEqual(choose_computer_card(
+                player, [trump_ten, discard], partner_winning, "Hearts", (player + 1) % 4,
+            ), discard)
+        # The latest trump-avoidance preference still applies if the only
+        # non-trump alternative is a suit previously trumped by an opponent.
+        self.assertEqual(choose_computer_card(
+            1, [trump_ten, discard], [], "Hearts", 0, {"Clubs"},
+        ), discard)
+
+    def test_opponent_trump_avoidance_preserves_forced_trumping_and_following(self):
+        cases = (
+            ([(0, Card("Hearts", "King"))],
+             [Card("Hearts", "7"), Card("Hearts", "Ace"), Card("Clubs", "7")],
+             Card("Hearts", "Ace")),
+            ([(0, Card("Clubs", "10"))],
+             [Card("Hearts", "7"), Card("Diamonds", "7")], Card("Hearts", "7")),
+            ([(3, Card("Clubs", "7")), (0, Card("Hearts", "King"))],
+             [Card("Hearts", "7"), Card("Hearts", "Ace"), Card("Diamonds", "7")],
+             Card("Hearts", "Ace")),
+            ([(3, Card("Clubs", "7")), (0, Card("Hearts", "King"))],
+             [Card("Hearts", "7"), Card("Diamonds", "7")], Card("Hearts", "7")),
+            ([], [Card("Hearts", "7"), Card("Hearts", "10")], Card("Hearts", "10")),
+        )
+        for trick, hand, expected in cases:
+            with self.subTest(trick=trick, hand=hand):
+                self.assertEqual(choose_computer_card(1, hand, trick, "Hearts", 0), expected)
+                self.assertIn(expected, legal_cards(hand, trick, "Hearts"))
+
+    def test_opponent_trump_avoidance_does_not_affect_null_or_unknown_chooser(self):
+        hand = [Card("Hearts", "10"), Card("Clubs", "7")]
+        self.assertEqual(choose_computer_card(1, hand, [], NULL_TRUMP, 0), hand[0])
+        self.assertEqual(choose_computer_card(1, hand, [], "Hearts"), hand[0])
+
+    def test_computers_avoid_opponent_trumped_suits_before_point_priority(self):
+        risky = Card("Clubs", "10")
+        safe = Card("Diamonds", "7")
+        for player in range(4):
+            with self.subTest(player=player):
+                self.assertEqual(choose_computer_card(
+                    player, [risky, safe], [], "Hearts",
+                    opponent_trumped_suits={"Clubs"},
+                ), safe)
+                self.assertEqual(choose_computer_card(
+                    player, [risky], [], "Hearts",
+                    opponent_trumped_suits={"Clubs"},
+                ), risky)
+                trump = Card("Hearts", "7")
+                self.assertEqual(choose_computer_card(
+                    player, [risky, safe, trump], [], "Hearts", player, {"Clubs"},
+                ), trump)
+        trick = [(0, Card("Spades", "10")), (1, Card("Spades", "7"))]
+        self.assertEqual(choose_computer_card(
+            2, [risky, safe], trick, "Hearts", opponent_trumped_suits={"Clubs"},
+        ), safe)
+
+    def test_avoiding_trumped_suits_preserves_mandatory_rules_and_null(self):
+        for trick, hand, trump, expected in (
+            ([(0, Card("Clubs", "King"))],
+             [Card("Clubs", "7"), Card("Clubs", "Ace"), Card("Diamonds", "7")],
+             "Hearts", Card("Clubs", "Ace")),
+            ([(3, Card("Clubs", "7")), (0, Card("Hearts", "King"))],
+             [Card("Hearts", "7"), Card("Hearts", "Ace"), Card("Diamonds", "7")],
+             "Hearts", Card("Hearts", "Ace")),
+            ([], [Card("Clubs", "10"), Card("Diamonds", "7")],
+             NULL_TRUMP, Card("Clubs", "10")),
+        ):
+            with self.subTest(trick=trick, trump=trump):
+                self.assertEqual(choose_computer_card(
+                    1, hand, trick, trump, opponent_trumped_suits={"Clubs", "Hearts"},
+                ), expected)
+
+    def test_trumped_suit_observations_are_shared_only_with_opposing_team(self):
+        for player in range(4):
+            deal = BoardDeal(0, random.Random(42))
+            deal.choose_trump("Hearts")
+            deal.leader = (player - 1) % 4
+            deal.trick = [(deal.leader, Card("Clubs", "7"))]
+            deal.hands[player] = [Card("Hearts", "7"), Card("Diamonds", "10")]
+            deal.play(Card("Hearts", "7"))
+            self.assertEqual(deal.trumped_suits[1 - team_of(player)], {"Clubs"})
+            self.assertEqual(deal.trumped_suits[team_of(player)], set())
+        history = [set(), set()]
+        for trick, trump in (
+            ([(0, Card("Clubs", "7"))], "Hearts"),
+            ([(0, Card("Hearts", "7")), (1, Card("Hearts", "Ace"))], "Hearts"),
+            ([(0, Card("Clubs", "7")), (1, Card("Hearts", "7"))], NULL_TRUMP),
+        ):
+            record_trumped_suit(trick, trump, history)
+        self.assertEqual(history, [set(), set()])
+
+    def test_trumped_suit_memory_survives_next_trick_but_resets_for_new_deal(self):
+        deal = BoardDeal(0, random.Random(42))
+        deal.choose_trump("Hearts")
+        deal.leader = 0
+        plays = [Card("Clubs", "Ace"), Card("Hearts", "7"),
+                 Card("Clubs", "7"), Card("Clubs", "8")]
+        for player, card in enumerate(plays):
+            deal.hands[player] = [card, Card("Diamonds", RANKS[player])]
+            deal.play(card)
+        self.assertEqual(deal.trumped_suits, [{"Clubs"}, set()])
+        deal.next_trick()
+        self.assertEqual(deal.trumped_suits, [{"Clubs"}, set()])
+        self.assertEqual(BoardDeal(1, random.Random(42)).trumped_suits, [set(), set()])
+        game = ManilleGame(human=False, seed=42)
+        game.trumped_suits = [{"Old deal"}, {"Old deal"}]
+        game.play_deal(verbose=False)
+        self.assertTrue(all("Old deal" not in suits for suits in game.trumped_suits))
+
+    def test_illegal_trump_does_not_change_observations(self):
+        deal = BoardDeal(0, random.Random(42))
+        deal.choose_trump("Hearts")
+        deal.leader = 0
+        deal.trick = [(0, Card("Clubs", "7"))]
+        deal.hands[1] = [Card("Clubs", "Ace"), Card("Hearts", "7")]
+        with self.assertRaises(ValueError):
+            deal.play(Card("Hearts", "7"))
+        self.assertEqual(deal.trumped_suits, [set(), set()])
+
     def test_hindu_shuffle_places_top_packets_and_remainder_in_correct_order(self):
         deck = make_deck()[:10]
         before = list(deck)
@@ -378,7 +510,8 @@ class ManilleTests(unittest.TestCase):
                         board.next_trick()
                     player = board.current_player
                     board.play(choose_computer_card(
-                        player, board.hands[player], board.trick, NULL_TRUMP, board.dealer
+                        player, board.hands[player], board.trick, NULL_TRUMP, board.dealer,
+                        board.trumped_suits[team_of(player)],
                     ))
                 self.assertEqual(sum(board.scores), 60)
                 captured = sum(board.captured, [])
@@ -762,6 +895,7 @@ class ManilleTests(unittest.TestCase):
                     choose_computer_card(
                         player, board.hands[player],
                         board.trick, board.trump, board.dealer,
+                        board.trumped_suits[team_of(player)],
                     )
                 )
                 # Completed tricks are already in captured,
@@ -784,6 +918,7 @@ class ManilleTests(unittest.TestCase):
             # Keep the final trick on display.
             self.assertEqual(len(board.trick), 4)
             self.assertEqual(board.game_deck, console.game_deck)
+            self.assertEqual(board.trumped_suits, console.trumped_suits)
             deck = list(board.game_deck)
 
     def test_game_deck_accumulates_each_completed_trick_once_in_play_order(self):

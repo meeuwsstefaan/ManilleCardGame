@@ -175,9 +175,20 @@ def legal_cards(hand: list[Card], trick: Trick, trump: str) -> list[Card]:
     return choices
 
 
+def record_trumped_suit(trick: Trick, trump: str, trumped_suits: list[set[str]]) -> None:
+    """Remember a publicly observed trump for the trumping player's opponents."""
+    if len(trick) < 2 or trump not in SUITS:
+        return
+    led_suit = trick[0][1].suit
+    player, card = trick[-1]
+    if led_suit != trump and card.suit == trump:
+        trumped_suits[1 - team_of(player)].add(led_suit)
+
+
 def choose_computer_card(
     player: int, hand: list[Card], trick: Trick, trump: str,
     trump_chooser: int | None = None,
+    opponent_trumped_suits: set[str] | None = None,
 ) -> Card:
     """A simple team-aware heuristic, without seeing other players' hands.
 
@@ -186,6 +197,9 @@ def choose_computer_card(
     In Null, always play the highest-value legal card, then highest rank.
     The trump chooser prefers legal trump cards, applying the value strategy
     within that suit. This recommendation never changes card legality.
+    When the opposing team chose trump, prefer legal non-trump cards.
+    Avoid suits previously trumped by opponents when a legal alternative
+    exists. Mandatory following and trumping still take precedence.
     Feed points to a winning partner when legal. A later opponent may still
     win, so this is a basic strategy rather than an optimal playing engine.
     """
@@ -195,6 +209,12 @@ def choose_computer_card(
     if player == trump_chooser:
         legal_trumps = [card for card in choices if card.suit == trump]
         choices = legal_trumps or choices
+    elif trump_chooser is not None and team_of(player) != team_of(trump_chooser):
+        non_trumps = [card for card in choices if card.suit != trump]
+        choices = non_trumps or choices
+    if opponent_trumped_suits:
+        alternatives = [card for card in choices if card.suit not in opponent_trumped_suits]
+        choices = alternatives or choices
     cheap = lambda card: (card.points, card.suit == trump, card.strength)
     partner_winning = partner_is_winning(player, trick, trump)
     fives = [card for card in choices if card.points == 5]
@@ -282,6 +302,7 @@ class ManilleGame:
         self.deals_played = 0
         self.deck = make_deck()
         self.game_deck: list[Card] = []
+        self.trumped_suits: list[set[str]] = [set(), set()]
         self.names = (
             PLAYER_NAMES if human
             else tuple(f"Computer {i}" for i in range(4))
@@ -304,6 +325,7 @@ class ManilleGame:
             if self.human:
                 input("Press Enter to reshuffle and deal again: ")
         self.game_deck = []
+        self.trumped_suits = [set(), set()]
         for hand in hands:
             hand.sort(key=lambda card: (
                 SUITS.index(card.suit), -card.strength
@@ -360,11 +382,15 @@ class ManilleGame:
                         print("As trump chooser, playing trump is recommended when legal.")
                     card = choose_human_card(hand, trick, trump)
                 else:
-                    card = choose_computer_card(player, hand, trick, trump, self.dealer)
+                    card = choose_computer_card(
+                        player, hand, trick, trump, self.dealer,
+                        self.trumped_suits[team_of(player)],
+                    )
                 if card not in legal_cards(hand, trick, trump):
                     raise RuntimeError("A player selected an illegal card.")
                 hand.remove(card)
                 trick.append((player, card))
+                record_trumped_suit(trick, trump, self.trumped_suits)
                 if verbose:
                     print(f"  {self.names[player]} plays {card}")
             leader, _ = winning_play(trick, trump)
@@ -430,6 +456,7 @@ class BoardDeal:
         self.captured: list[list[Card]] = [[], []]
         # Completed tricks in chronological order, cards in play order.
         self.game_deck: list[Card] = []
+        self.trumped_suits: list[set[str]] = [set(), set()]
         self.scores = [0, 0]
         self.trick_number = 1
         self.finished = False
@@ -463,6 +490,7 @@ class BoardDeal:
             raise ValueError("Illegal card.")
         self.hands[player].remove(card)
         self.trick.append((player, card))
+        record_trumped_suit(self.trick, self.trump, self.trumped_suits)
         if len(self.trick) == 4:
             winner, _ = winning_play(self.trick, self.trump)
             team = team_of(winner)
@@ -1054,7 +1082,8 @@ class ManilleBoard:
         else:
             player = d.current_player
             hand = d.hands[player]
-            card = choose_computer_card(player, hand, d.trick, d.trump, d.dealer)
+            avoided = d.trumped_suits[team_of(player)]
+            card = choose_computer_card(player, hand, d.trick, d.trump, d.dealer, avoided)
             if d.trump == NULL_TRUMP:
                 reason = "Null: play the highest-value legal card, prioritizing 5-point 10s."
             elif card.points == 5 and (
@@ -1088,6 +1117,14 @@ class ManilleBoard:
                 )
             if player == d.dealer and card.suit == d.trump:
                 reason = "Trump chooser: prioritize legal trump cards. " + reason
+            if d.trump in SUITS and team_of(player) != team_of(d.dealer) and card.suit != d.trump and any(
+                choice.suit == d.trump for choice in legal_cards(hand, d.trick, d.trump)
+            ):
+                reason = "Opponents chose trump: prefer a legal non-trump card. " + reason
+            if d.trump != NULL_TRUMP and card.suit not in avoided and any(
+                choice.suit in avoided for choice in legal_cards(hand, d.trick, d.trump)
+            ):
+                reason = "Avoid suits previously trumped by opponents. " + reason
             self.play_card(card, reason)
             return
         self.render()

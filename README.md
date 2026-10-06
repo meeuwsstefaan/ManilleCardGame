@@ -84,6 +84,10 @@ If any player's initial eight-card hand has zero points, the board pauses before
 
 The computer that chose a trump suit prefers to lead and play legal cards of that suit. Within those legal trump cards, its usual point-value strategy still applies. Following suit and other mandatory rules take precedence, and Null strategy is unchanged. Human trump choosers receive a recommendation on the board and retain manual choice.
 
+When the opposing team chose trump, computers prefer legal non-trump cards, even instead of a trump 10. Mandatory following, trumping, and overtrumping take precedence; trump cards are still played when they are the only legal options. If your own team chose trump, this avoidance preference does not apply. Null strategy and human manual choice remain unchanged.
+
+Computers remember suits that opponents have trumped during the current deal and avoid playing those suits whenever a legal alternative exists, including leading another suit instead of a vulnerable 10. Both partners share this observation. Mandatory following, trumping, and overtrumping still apply; if only cards of an avoided suit are legal, the computer plays one. This memory resets each deal, Null strategy is unchanged, and human players retain manual choice.
+
 These examples use the Windows Python launcher. On macOS or Linux, replace `py -3` with `python3`.
 
 **Watch four computer players on the board:**
