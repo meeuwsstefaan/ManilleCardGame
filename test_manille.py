@@ -161,7 +161,7 @@ class ManilleTests(unittest.TestCase):
         rng = random.Random(42)
         # Keep five cards in the holding hand; pull packets of three and two.
         with patch.object(rng, "randint", side_effect=(5, 3, 2)):
-            hindu_shuffle(deck, rng)
+            self.assertEqual(hindu_shuffle(deck, rng), [3, 2, 5])
         self.assertEqual(deck, before[5:] + before[3:5] + before[:3])
 
     def test_hindu_shuffle_preserves_cards_points_and_is_repeatable(self):
@@ -170,8 +170,17 @@ class ManilleTests(unittest.TestCase):
         rng, other_rng = random.Random(42), random.Random(42)
         for _ in range(100):
             before = list(deck)
-            hindu_shuffle(deck, rng)
-            hindu_shuffle(other, other_rng)
+            packets = hindu_shuffle(deck, rng)
+            self.assertEqual(hindu_shuffle(other, other_rng), packets)
+            self.assertEqual(sum(packets), 32)
+            self.assertTrue(all(1 <= size <= 5 for size in packets[:-1]))
+            self.assertIn(packets[-1], range(3, 7))
+            cursor = 0
+            picked = []
+            for size in packets:
+                picked.append(before[cursor:cursor + size])
+                cursor += size
+            self.assertEqual(deck, [card for packet in reversed(picked) for card in packet])
             self.assertEqual(deck, other)
             self.assertNotEqual(deck, before)
             self.assertEqual(len(deck), 32)

@@ -64,22 +64,27 @@ def make_deck() -> list[Card]:
     return [Card(suit, rank) for suit in SUITS for rank in RANKS]
 
 
-def hindu_shuffle(deck: list[Card], rng: random.Random) -> None:
+def hindu_shuffle(deck: list[Card], rng: random.Random) -> list[int]:
     """Pull top packets into a receiving hand, then drop the remainder on top.
 
     Card 0 is the top of the deck. Each packet retains its internal order;
     successive packets land on top of the cards already received.
+    Return packet sizes in pickup order, including the final remainder,
+    so the board can animate this exact shuffle without drawing again.
     """
     if len(deck) < 2:
-        return
+        return [len(deck)] if deck else []
     remainder = min(rng.randint(3, 6), len(deck) - 1)
     received: list[Card] = []
+    packets: list[int] = []
     cursor = 0
     while len(deck) - cursor > remainder:
         size = rng.randint(1, min(5, len(deck) - cursor - remainder))
         received = deck[cursor:cursor + size] + received
+        packets.append(size)
         cursor += size
     deck[:] = deck[cursor:] + received
+    return packets + [remainder]
 
 
 def deal_hands(deck: list[Card], dealer: int) -> list[list[Card]]:
@@ -532,6 +537,8 @@ class ManilleBoard:
     }
     CAPTURE_SECONDS = 0.5
     PLAY_SECONDS = 0.35
+    SHUFFLE_SECONDS = 1.6
+    SHUFFLE_INTERVAL_MS = 16
     MATCH_TARGET = 101
 
     def __init__(
@@ -558,6 +565,10 @@ class ManilleBoard:
         self.shuffling = False
         self.shuffle_deck: list[Card] = []
         self.shuffle_count = 0
+        self.shuffle_pending = None
+        self.shuffle_progress: float | None = None
+        self.shuffle_result: list[Card] = []
+        self.shuffle_packets: list[int] = []
         self.shuffle_box = (245, 150, 635, 420)
         self.running = False
         self.pending = None
@@ -718,6 +729,9 @@ class ManilleBoard:
         self.shuffle_deck = make_deck() if deck is None else list(deck)
         # Preserve the incoming order: only a deck click performs a shuffle.
         self.shuffle_count = 0
+        self.shuffle_result = []
+        self.shuffle_packets = []
+        self.shuffle_progress = None
         self.write(
             f"Deal {self.deal_number}: {self.names[self.shuffle_dealer]} deals. "
             "Click the deck for one Hindu shuffle. Inspect the 32 cards below, then deal."
@@ -725,15 +739,33 @@ class ManilleBoard:
         self.render()
 
     def shuffle_once(self) -> None:
-        if not self.shuffling:
+        if not self.shuffling or self.shuffle_progress is not None:
             return
-        hindu_shuffle(self.shuffle_deck, self.rng)
-        self.shuffle_count += 1
-        self.write(f"Hindu shuffle {self.shuffle_count} complete. Click again or deal the cards.")
+        self.shuffle_result = list(self.shuffle_deck)
+        self.shuffle_packets = hindu_shuffle(self.shuffle_result, self.rng)
+        self.shuffle_started = time.monotonic()
+        self.shuffle_progress = 0.0
+        self.shuffle_tick()
+
+    def shuffle_tick(self) -> None:
+        self.shuffle_pending = None
+        if not self.shuffling or self.shuffle_progress is None:
+            return
+        self.shuffle_progress = min(
+            (time.monotonic() - self.shuffle_started) / self.SHUFFLE_SECONDS, 1.0
+        )
+        if self.shuffle_progress >= 1.0:
+            self.shuffle_deck[:] = self.shuffle_result
+            self.shuffle_result = []
+            self.shuffle_progress = None
+            self.shuffle_count += 1
+            self.write(f"Hindu shuffle {self.shuffle_count} complete. Click again or deal the cards.")
         self.render()
+        if self.shuffle_progress is not None:
+            self.shuffle_pending = self.root.after(self.SHUFFLE_INTERVAL_MS, self.shuffle_tick)
 
     def stop_shuffle(self) -> None:
-        if self.showing_last_hand or not self.shuffling:
+        if self.showing_last_hand or not self.shuffling or self.shuffle_progress is not None:
             return
         # Deal this exact order. BoardDeal must not shuffle it again.
         self.deal = BoardDeal(self.shuffle_dealer, self.rng, deck=self.shuffle_deck)
@@ -778,13 +810,31 @@ class ManilleBoard:
                       fill="#1b6350", outline="#438773", width=2)
         c.create_oval(325 * sx, 345 * sy, 565 * sx, 395 * sy,
                       fill="#104536", outline="")
-        for index in range(32):
-            x = 372 + index * .8
-            y = 190 + index * 1.3
+        busy = self.shuffle_progress is not None
+        progress = self.shuffle_progress or 0.0
+        # Lift the held deck, pull the real packets across one by one, then
+        # place the remainder on top and square the receiving pile.
+        spread = min(progress / .12, 1.0, (1 - progress) / .12) if busy else 0.0
+        packet_time = .76 / max(len(self.shuffle_packets), 1)
+        positions = []
+        cursor = 0
+        packets = self.shuffle_packets if busy else [32]
+        for packet, size in enumerate(packets):
+            transfer = max(0.0, min(1.0, (progress - .12 - packet * packet_time) / packet_time)) if busy else 0.0
+            transfer = transfer * transfer * (3 - 2 * transfer)
+            state = 2 if 0 < transfer < 1 else 1 if transfer == 0 else 0
+            for index in range(cursor, cursor + size):
+                x = 372 + index * .8 + (110 * (1 - transfer) - 90 * transfer) * spread
+                y = 190 + index * 1.3 - 40 * spread * (1 - transfer)
+                y += 15 * spread * transfer - 25 * math.sin(math.pi * transfer)
+                positions.append((state, index, x, y))
+            cursor += size
+        # Draw received cards first and the moving packet last, keeping it visible.
+        for state, index, x, y in sorted(positions):
             c.create_rectangle(
                 x * sx, y * sy, (x + 116) * sx, (y + 162) * sy,
                 fill="#fffdf5", outline="#c7c7b8", width=1,
-                tags=("shuffle-card",),
+                tags=("shuffle-card", f"shuffle-card-{index}", f"shuffle-stack-{state}"),
             )
             c.create_rectangle(
                 (x + 5) * sx, (y + 5) * sy, (x + 111) * sx, (y + 157) * sy,
@@ -802,7 +852,15 @@ class ManilleBoard:
             for corner_x, corner_y, symbol in ((17, 19, "♠"), (99, 143, "♠")):
                 c.create_text((x + corner_x) * sx, (y + corner_y) * sy,
                               text=symbol, fill="#f1d797", font=("Segoe UI", 13))
-        label(440, 442, "Click the deck for one Hindu shuffle", 17)
+        if busy:
+            packet = min(max(int((progress - .12) / packet_time), 0), len(self.shuffle_packets) - 1)
+            instruction = (
+                "Place the remaining packet on top" if packet == len(self.shuffle_packets) - 1
+                else f"Pull packet {packet + 1} of {len(self.shuffle_packets)}"
+            )
+        else:
+            instruction = "Click the deck for one Hindu shuffle"
+        label(440, 442, instruction, 17)
         shuffles = "shuffle" if self.shuffle_count == 1 else "shuffles"
         label(440, 473, f"32 cards  •  {self.shuffle_count} {shuffles}", 13)
         label(440, 505, "Deck order: left to right, top row first (1 is dealt first)", 12)
@@ -822,14 +880,14 @@ class ManilleBoard:
             c.create_text((x + 23) * sx, (y + 62) * sy, text=str(index + 1),
                           fill="#68766e", font=("Segoe UI", 9), tags=("deck-preview-position", tag))
         label(440, 714, "Ready? Choose Deal cards to use this exact order.", 12)
-        c.configure(cursor="hand2")
+        c.configure(cursor="watch" if busy else "hand2")
         self.match_score.set(
             f"First to {self.MATCH_TARGET} points\n"
             f"Team 1: {self.total[0]}\nTeam 2: {self.total[1]}"
         )
         self.summary.set(f"Deal {self.deal_number} - Dealer: {self.names[self.shuffle_dealer]}")
-        self.status.set("Click the deck for one Hindu shuffle, or choose Deal cards.")
-        self.deal_button.configure(state="normal")
+        self.status.set("Hindu shuffle in progress…" if busy else "Click the deck for one Hindu shuffle, or choose Deal cards.")
+        self.deal_button.configure(state="disabled" if busy else "normal")
         self.trump_box.configure(state="disabled")
         for button in (self.trump_button, self.step_button, self.run_button, self.next_button):
             button.configure(state="disabled")
@@ -910,6 +968,9 @@ class ManilleBoard:
 
     def close(self) -> None:
         self.stop()
+        if self.shuffle_pending is not None:
+            self.root.after_cancel(self.shuffle_pending)
+            self.shuffle_pending = None
         if self.animation_pending is not None:
             self.root.after_cancel(self.animation_pending)
             self.animation_pending = None

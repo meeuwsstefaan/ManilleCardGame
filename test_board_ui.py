@@ -29,6 +29,13 @@ class BoardUITests(unittest.TestCase):
             self.root.update()
             time.sleep(0.001)
 
+    def wait_for_shuffle(self, board):
+        deadline = time.monotonic() + 3
+        while board.shuffle_progress is not None:
+            self.assertLess(time.monotonic(), deadline, "Shuffle animation stalled")
+            self.root.update()
+            time.sleep(0.001)
+
     def assert_preview_matches_deck(self, board):
         self.assertEqual(len(board.canvas.find_withtag("deck-preview-card")), 32)
         for index, card in enumerate(board.shuffle_deck):
@@ -51,7 +58,7 @@ class BoardUITests(unittest.TestCase):
             board.render()
         def cancel_timers():
             if board.root.winfo_exists():
-                for attribute in ("pending", "animation_pending"):
+                for attribute in ("pending", "animation_pending", "shuffle_pending"):
                     timer = getattr(board, attribute)
                     if timer is not None:
                         board.root.after_cancel(timer)
@@ -164,6 +171,7 @@ class BoardUITests(unittest.TestCase):
         self.assertIsNone(board.deal)
         board.shuffle_once()
         self.assertEqual(str(board.last_hand_button["state"]), "disabled")
+        self.wait_for_shuffle(board)
         self.assertEqual(str(board.last_hand_button["state"]), "disabled")
         board.stop_shuffle()
         self.assertIsNone(board.last_hand)
@@ -287,11 +295,14 @@ class BoardUITests(unittest.TestCase):
                     def replace_deck(deck, rng):
                         inputs.append(list(deck))
                         deck[:] = good
+                        return [4] * 8
                     with patch("manille.hindu_shuffle", side_effect=replace_deck):
                         board.info_button.invoke()
                         self.assertEqual(board.shuffle_deck, bad_deck)
                         self.assertFalse(inputs)  # Restart itself never shuffles.
+                        board.SHUFFLE_SECONDS = 0.01
                         board.shuffle_once()
+                        self.wait_for_shuffle(board)
                     self.assertEqual(inputs, [bad_deck])
                     self.assertTrue(board.shuffling)
                     self.assertFalse(board.redeal_pending)
@@ -396,6 +407,7 @@ class BoardUITests(unittest.TestCase):
 
     def test_each_deck_click_shuffles_once_then_deals_exact_frozen_deck(self):
         board = self.create_board(self.root, human=True, seed=42, stop_shuffle=False, prepare_deck=False)
+        board.SHUFFLE_SECONDS = 0.08
         self.root.update()
         self.assertTrue(board.shuffling)
         self.assertIsNone(board.deal)  # Only the Deal cards button deals.
@@ -434,13 +446,37 @@ class BoardUITests(unittest.TestCase):
                 rectangle = board.canvas.find_withtag("shuffle-card")[-1]
                 x1, y1, x2, y2 = board.canvas.coords(rectangle)
                 board.canvas.event_generate("<Button-1>", x=int((x1 + x2) / 2), y=int((y1 + y2) / 2))
-                self.assertNotEqual(board.shuffle_deck, previous)
+                self.assertIsNotNone(board.shuffle_progress)
+                self.assertEqual(board.shuffle_deck, previous)
+                self.assertEqual(board.shuffle_count, count - 1)
+                self.assertEqual(sum(board.shuffle_packets), 32)
+                self.assert_preview_matches_deck(board)
+                self.assertEqual(str(board.deal_button["state"]), "disabled")
+                board.stop_shuffle()
+                board.shuffle_once()  # Busy clicks cannot start another shuffle.
+                self.assertEqual(shuffle.call_count, count)
                 self.assertIsNone(board.deal)
+                # Inspect a deterministic intermediate frame: the moving
+                # packet must be separate from the held and received stacks.
+                board.shuffle_progress = .12 + 1.5 * .76 / len(board.shuffle_packets)
+                board.render()
+                self.assertTrue(board.canvas.find_withtag("shuffle-stack-2"))
+                self.assertTrue(board.canvas.find_withtag("shuffle-stack-0"))
+                self.assertTrue(board.canvas.find_withtag("shuffle-stack-1"))
+                self.assertEqual(len(board.canvas.find_withtag("shuffle-card")), 32)
+                moving = board.canvas.find_withtag("shuffle-stack-2")[0]
+                self.assertNotEqual(board.canvas.coords(moving), [x1, y1, x2, y2])
+                self.root.geometry("1250x850")
+                self.root.update_idletasks()
+                self.assert_preview_matches_deck(board)
+                self.wait_for_shuffle(board)
+                self.assertNotEqual(board.shuffle_deck, previous)
                 self.assertEqual(board.shuffle_count, count)
                 self.assertEqual(shuffle.call_count, count)
                 self.assert_preview_matches_deck(board)
                 self.assertTrue(board.shuffling)
                 self.assertEqual(str(board.deal_button["state"]), "normal")
+                self.assertIsNone(board.shuffle_pending)
                 self.root.update()  # No timer or redraw may shuffle again.
                 self.assertEqual(shuffle.call_count, count)
         self.assertNotEqual(board.shuffle_deck, first_order)
@@ -499,6 +535,7 @@ class BoardUITests(unittest.TestCase):
         self.root.update()
         x1, y1, x2, y2 = board.canvas.coords(board.canvas.find_withtag("shuffle-card")[0])
         board.click_card(SimpleNamespace(x=(x1 + x2) / 2, y=(y1 + y2) / 2))
+        self.wait_for_shuffle(board)
         self.assertTrue(board.shuffling)
         board.deal_button.invoke()
         self.assertFalse(board.shuffling)
@@ -531,13 +568,16 @@ class BoardUITests(unittest.TestCase):
         def reverse_deck(deck, rng):
             inputs.append(list(deck))
             deck.reverse()
+            return [1] * 32
 
         with patch("manille.hindu_shuffle", side_effect=reverse_deck):
             board.next_deal()
             self.assertEqual(inputs, [])
             self.assertEqual(board.shuffle_deck, collected)
             self.assert_preview_matches_deck(board)
+            board.SHUFFLE_SECONDS = 0.01
             board.shuffle_once()
+            self.wait_for_shuffle(board)
             self.assertEqual(inputs, [collected])
             self.assertEqual(board.shuffle_deck, list(reversed(collected)))
             self.assert_preview_matches_deck(board)
@@ -547,14 +587,16 @@ class BoardUITests(unittest.TestCase):
         self.assertEqual(board.running_totals(), totals)
         self.assertEqual(board.deal.dealer, 1)
 
-    def test_shuffle_does_not_schedule_a_timer_and_board_closes_cleanly(self):
+    def test_closing_during_shuffle_cancels_animation_timer(self):
         import tkinter as tk
         window = tk.Toplevel(self.root)
         board = self.create_board(window, stop_shuffle=False)
-        timers = self.root.tk.call("after", "info")
         board.shuffle_once()
-        self.assertEqual(self.root.tk.call("after", "info"), timers)
+        timer = board.shuffle_pending
+        self.assertIsNotNone(timer)
         board.close()
+        self.assertIsNone(board.shuffle_pending)
+        self.assertNotIn(timer, self.root.tk.call("after", "info"))
         self.assertFalse(window.winfo_exists())
         self.root.update()
 
