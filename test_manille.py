@@ -12,14 +12,97 @@ from manille import (
     choose_computer_join,
     choose_computer_trump,
     deal_hands,
+    hindu_shuffle,
     legal_cards,
     make_deck,
     match_points,
     winning_play,
+    zero_point_players,
+    SUITS,
 )
 
 
 class ManilleTests(unittest.TestCase):
+    def test_hindu_shuffle_places_top_packets_and_remainder_in_correct_order(self):
+        deck = make_deck()[:10]
+        before = list(deck)
+        rng = random.Random(42)
+        # Keep five cards in the holding hand; pull packets of three and two.
+        with patch.object(rng, "randint", side_effect=(5, 3, 2)):
+            hindu_shuffle(deck, rng)
+        self.assertEqual(deck, before[5:] + before[3:5] + before[:3])
+
+    def test_hindu_shuffle_preserves_cards_points_and_is_repeatable(self):
+        deck = make_deck()
+        other = list(deck)
+        rng, other_rng = random.Random(42), random.Random(42)
+        for _ in range(100):
+            before = list(deck)
+            hindu_shuffle(deck, rng)
+            hindu_shuffle(other, other_rng)
+            self.assertEqual(deck, other)
+            self.assertNotEqual(deck, before)
+            self.assertEqual(len(deck), 32)
+            self.assertEqual(set(deck), set(make_deck()))
+            self.assertEqual(sum(card.points for card in deck), 60)
+
+    def test_hindu_shuffle_handles_empty_and_single_card_decks(self):
+        for deck in ([], make_deck()[:1]):
+            before = list(deck)
+            hindu_shuffle(deck, random.Random(42))
+            self.assertEqual(deck, before)
+
+    def test_initial_zero_point_hand_is_detected_at_every_seat_and_dealer(self):
+        for player, seed in ((0, 7958), (1, 4797), (2, 18367), (3, 7362)):
+            for dealer in range(4):
+                with self.subTest(player=player, dealer=dealer):
+                    deal = BoardDeal(dealer, random.Random(seed))
+                    expected = ((player + dealer) % 4,)
+                    self.assertEqual(deal.zero_point_players, expected)
+                    self.assertEqual(zero_point_players(deal.hands), expected)
+                    original = [list(hand) for hand in deal.hands]
+                    with self.assertRaises(ValueError):
+                        deal.choose_trump("Hearts")
+                    with self.assertRaises(ValueError):
+                        deal.play(deal.hands[deal.current_player][0])
+                    self.assertEqual(deal.hands, original)
+                    self.assertEqual(deal.scores, [0, 0])
+                    self.assertFalse(deal.game_deck)
+
+    def test_console_repeated_zero_point_hands_restart_without_counting_deals(self):
+        bad = make_deck()
+        random.Random(7958).shuffle(bad)
+        good = make_deck()
+        random.Random(42).shuffle(good)
+        for human in (False, True):
+            with self.subTest(human=human):
+                game = ManilleGame(human=human)
+                game.dealer = 2
+                game.deals_played = 7
+                game.scores = [5, 8]
+                attempts = iter((bad, bad, good))
+                def replace_deck(deck):
+                    deck[:] = next(attempts)
+                with (
+                    patch.object(game.random, "shuffle", side_effect=replace_deck) as shuffle,
+                    patch("builtins.input", return_value="") as prompt,
+                    patch("builtins.print"),
+                    patch("manille.read_choice", return_value=0),
+                    patch("manille.choose_computer_trump", return_value="Hearts") as chooser,
+                    patch("manille.choose_computer_join", return_value=False),
+                    patch("manille.choose_human_card", side_effect=lambda hand, trick, trump:
+                          legal_cards(hand, trick, trump)[0]),
+                ):
+                    raw = game.play_deal(verbose=False)
+                self.assertEqual(shuffle.call_count, 3)
+                self.assertEqual(prompt.call_count, 2 if human else 0)
+                chooser.assert_called_once()
+                self.assertEqual(game.deals_played, 8)
+                self.assertEqual(game.dealer, 3)
+                self.assertEqual(game.scores, [5 + match_points(raw[0]), 8 + match_points(raw[1])])
+                self.assertEqual(len(set(game.game_deck)), 32)
+                self.assertEqual(sum(raw), 60)
+
     def test_only_opponents_can_join_suit_trump_once_before_play(self):
         for dealer in range(4):
             for player in (-1, 0, 1, 2, 3, 4):
@@ -206,6 +289,43 @@ class ManilleTests(unittest.TestCase):
         hand = [Card("Hearts", "10"), Card("Clubs", "10")]
         self.assertEqual(choose_computer_card(0, hand, [], "Hearts"), hand[1])
 
+    def test_trump_chooser_prefers_legal_trump_on_leads_and_with_partner(self):
+        for player, trump in enumerate(SUITS):
+            led = next(suit for suit in SUITS if suit != trump)
+            discard_suit = next(suit for suit in SUITS if suit not in (trump, led))
+            low = Card(trump, "7")
+            ace = Card(trump, "Ace")
+            discard = Card(discard_suit, "10")
+            hand = [low, ace, discard]
+            with self.subTest(player=player, trump=trump):
+                self.assertEqual(choose_computer_card(player, hand, [], trump, player), low)
+                self.assertEqual(choose_computer_card(player, hand, [], trump, (player + 1) % 4), discard)
+                ten = Card(trump, "10")
+                self.assertEqual(choose_computer_card(player, hand + [ten], [], trump, player), ten)
+                partner_led = [((player - 2) % 4, Card(led, "10")),
+                               ((player - 1) % 4, Card(led, "7"))]
+                self.assertEqual(choose_computer_card(player, hand, partner_led, trump, player), ace)
+                partner_trump = [((player - 3) % 4, Card(led, "7")),
+                                 ((player - 2) % 4, Card(trump, "King")),
+                                 ((player - 1) % 4, Card(led, "8"))]
+                self.assertEqual(choose_computer_card(player, hand, partner_trump, trump, player), ace)
+                # Preference cannot make an avoidable lower trump legal.
+                self.assertEqual(choose_computer_card(player, [low, discard], partner_trump, trump, player), discard)
+                # Null still uses the highest-value legal card.
+                self.assertEqual(choose_computer_card(player, hand, [], NULL_TRUMP, player), discard)
+
+    def test_trump_chooser_respects_following_and_cheap_play_against_opponents(self):
+        hand = [Card("Hearts", "10"), Card("Hearts", "Ace"), Card("Hearts", "7"),
+                Card("Clubs", "Ace"), Card("Clubs", "9"), Card("Spades", "10")]
+        trick = [(3, Card("Clubs", "Queen")), (0, Card("Hearts", "King"))]
+        self.assertEqual(choose_computer_card(1, hand, trick, "Hearts", 1), Card("Clubs", "9"))
+        void_hand = [card for card in hand if card.suit != "Clubs"]
+        self.assertEqual(choose_computer_card(1, void_hand, trick, "Hearts", 1), Card("Hearts", "Ace"))
+        lead = [(0, Card("Diamonds", "10"))]
+        self.assertEqual(choose_computer_card(1, void_hand, lead, "Hearts", 1), Card("Hearts", "7"))
+        no_trump = [Card("Spades", "10"), Card("Clubs", "7")]
+        self.assertEqual(choose_computer_card(1, no_trump, lead, "Hearts", 1), no_trump[1])
+
     def test_null_computer_prioritizes_high_values_on_every_turn(self):
         for trick in (
             [],
@@ -245,9 +365,11 @@ class ManilleTests(unittest.TestCase):
         rng = random.Random(42)
         console = ManilleGame(human=False, seed=42)
         expected_totals = [0, 0]
+        deck = make_deck()
         with patch("manille.choose_computer_trump", return_value=NULL_TRUMP):
             for deal_number in range(5):
-                board = BoardDeal(deal_number % 4, rng)
+                rng.shuffle(deck)
+                board = BoardDeal(deal_number % 4, rng, deck=deck)
                 board.choose_trump(NULL_TRUMP)
                 with self.assertRaises(ValueError):
                     board.choose_trump("Clubs")
@@ -256,7 +378,7 @@ class ManilleTests(unittest.TestCase):
                         board.next_trick()
                     player = board.current_player
                     board.play(choose_computer_card(
-                        player, board.hands[player], board.trick, NULL_TRUMP
+                        player, board.hands[player], board.trick, NULL_TRUMP, board.dealer
                     ))
                 self.assertEqual(sum(board.scores), 60)
                 captured = sum(board.captured, [])
@@ -267,6 +389,8 @@ class ManilleTests(unittest.TestCase):
                     for old, raw in zip(expected_totals, board.scores)
                 ]
                 self.assertEqual(console.scores, expected_totals)
+                self.assertEqual(console.game_deck, board.game_deck)
+                deck = list(board.game_deck)
 
     def test_human_can_choose_null_in_console(self):
         game = ManilleGame(seed=42)
@@ -310,6 +434,34 @@ class ManilleTests(unittest.TestCase):
         self.assertEqual(board.hands[2], hand)
         board.play(hand[0])
         self.assertEqual(winning_play(board.trick, "Hearts")[0], 1)
+
+    def test_opponent_trump_allows_every_led_suit_card_for_each_player(self):
+        for player in range(4):
+            for trump in SUITS:
+                led = next(suit for suit in SUITS if suit != trump)
+                discard_suit = next(suit for suit in SUITS if suit not in (trump, led))
+                trick = [
+                    ((player - 3) % 4, Card(led, "Queen")),
+                    ((player - 2) % 4, Card(led, "8")),
+                    ((player - 1) % 4, Card(trump, "King")),
+                ]
+                following = [Card(led, rank) for rank in ("7", "9", "Jack", "Ace", "10")]
+                hand = following + [Card(trump, "10"), Card(discard_suit, "7")]
+                with self.subTest(player=player, trump=trump):
+                    self.assertEqual(legal_cards(hand, trick, trump), following)
+                    self.assertEqual(choose_computer_card(player, hand, trick, trump), following[0])
+                    for card in following:
+                        deal = BoardDeal(0, random.Random(42))
+                        deal.choose_trump(trump)
+                        deal.leader = trick[0][0]
+                        deal.trick = list(trick)
+                        deal.hands[player] = list(hand)
+                        for illegal in hand[-2:]:
+                            with self.assertRaises(ValueError):
+                                deal.play(illegal)
+                        deal.play(card)
+                        self.assertEqual(deal.trick[-1], (player, card))
+                    self.assertEqual(legal_cards(hand, trick, NULL_TRUMP), following[-2:])
 
     def test_no_other_suit_can_replace_following_suit(self):
         trick = [(0, Card("Clubs", "7")), (1, Card("Hearts", "King"))]
@@ -399,16 +551,28 @@ class ManilleTests(unittest.TestCase):
             hand[0],
         )
 
-    def test_partner_winning_led_suit_still_requires_trump_when_void(self):
-        trick = [
-            (0, Card("Clubs", "10")),
-            (1, Card("Spades", "7")),
-        ]
+    def test_partner_winning_led_suit_allows_discard_when_void_for_every_player(self):
         hand = [Card("Hearts", "7"), Card("Diamonds", "10")]
-        self.assertEqual(
-            choose_computer_card(2, hand, trick, "Hearts"),
-            hand[0],
-        )
+        for player in range(4):
+            trick = [
+                ((player - 2) % 4, Card("Clubs", "10")),
+                ((player - 1) % 4, Card("Spades", "7")),
+            ]
+            with self.subTest(player=player):
+                self.assertEqual(legal_cards(hand, trick, "Hearts"), hand)
+                self.assertEqual(choose_computer_card(player, hand, trick, "Hearts"), hand[1])
+                for card in hand:
+                    deal = BoardDeal(0, random.Random(42))
+                    deal.choose_trump("Hearts")
+                    deal.leader = trick[0][0]
+                    deal.trick = list(trick)
+                    deal.hands[player] = list(hand)
+                    deal.play(card)
+                    self.assertEqual(deal.trick[-1], (player, card))
+                # An opponent taking the lead restores mandatory trumping.
+                trick[-1] = ((player - 1) % 4, Card("Clubs", "10"))
+                trick[0] = ((player - 2) % 4, Card("Clubs", "7"))
+                self.assertEqual(legal_cards(hand, trick, "Hearts"), [hand[0]])
 
     def test_partner_winning_trump_excludes_avoidable_lower_trumps_for_each_player(self):
         for player in range(4):
@@ -422,12 +586,13 @@ class ManilleTests(unittest.TestCase):
                     Card("Hearts", "8"), Card("Hearts", "Ace"),
                     Card("Diamonds", "10"),
                 ]
-                self.assertEqual(legal_cards(hand, trick, "Hearts"), [hand[1]])
+                self.assertEqual(legal_cards(hand, trick, "Hearts"), hand[1:])
+                self.assertEqual(legal_cards([hand[0], hand[2]], trick, "Hearts"), [hand[2]])
                 self.assertEqual(
                     choose_computer_card(player, hand, trick, "Hearts"),
-                    hand[1],
+                    hand[2],
                 )
-                for card in (hand[1],):
+                for card in hand[1:]:
                     board = BoardDeal(0, random.Random(42))
                     board.choose_trump("Hearts")
                     board.leader = trick[0][0]
@@ -435,13 +600,11 @@ class ManilleTests(unittest.TestCase):
                     board.hands[player] = list(hand)
                     with self.assertRaises(ValueError):
                         board.play(hand[0])
-                    with self.assertRaises(ValueError):
-                        board.play(hand[2])
                     self.assertEqual(board.hands[player], hand)
                     board.play(card)
                     self.assertEqual(
                         winning_play(board.trick, "Hearts")[0],
-                        player,
+                        player if card.suit == "Hearts" else (player - 2) % 4,
                     )
 
     def test_lower_trumps_are_legal_only_when_no_legal_alternative_remains(self):
@@ -456,7 +619,8 @@ class ManilleTests(unittest.TestCase):
             discard = Card("Diamonds", "10")
             with self.subTest(winner=winning_player):
                 self.assertEqual(legal_cards(lower, trick, "Hearts"), lower)
-                self.assertEqual(legal_cards(lower + [discard], trick, "Hearts"), lower)
+                self.assertEqual(legal_cards(lower + [discard], trick, "Hearts"),
+                                 [discard] if winning_player == 1 else lower)
                 higher = Card("Hearts", "Ace")
                 self.assertEqual(legal_cards(lower + [higher], trick, "Hearts"), [higher])
 
@@ -571,8 +735,10 @@ class ManilleTests(unittest.TestCase):
     def test_board_deals_match_console_and_preserve_every_card(self):
         rng = random.Random(42)
         console = ManilleGame(human=False, seed=42)
+        deck = make_deck()
         for deal_number in range(100):
-            board = BoardDeal(deal_number % 4, rng)
+            rng.shuffle(deck)
+            board = BoardDeal(deal_number % 4, rng, deck=deck)
             self.assertEqual(
                 board.current_player, (board.dealer + 1) % 4
             )
@@ -595,7 +761,7 @@ class ManilleTests(unittest.TestCase):
                 board.play(
                     choose_computer_card(
                         player, board.hands[player],
-                        board.trick, board.trump,
+                        board.trick, board.trump, board.dealer,
                     )
                 )
                 # Completed tricks are already in captured,
@@ -617,6 +783,53 @@ class ManilleTests(unittest.TestCase):
             )
             # Keep the final trick on display.
             self.assertEqual(len(board.trick), 4)
+            self.assertEqual(board.game_deck, console.game_deck)
+            deck = list(board.game_deck)
+
+    def test_game_deck_accumulates_each_completed_trick_once_in_play_order(self):
+        for trump in ("Hearts", NULL_TRUMP):
+            deal = BoardDeal(0, random.Random(42))
+            deal.choose_trump(trump)
+            collected = []
+            while not deal.finished:
+                if len(deal.trick) == 4:
+                    before = list(deal.game_deck)
+                    deal.next_trick()
+                    self.assertEqual(deal.game_deck, before)
+                player = deal.current_player
+                card = choose_computer_card(player, deal.hands[player], deal.trick, trump)
+                deal.play(card)
+                if len(deal.trick) == 4:
+                    collected.extend(card for _, card in deal.trick)
+                    with self.assertRaises(ValueError):
+                        deal.play(card)  # Repeated play cannot collect again.
+                self.assertEqual(deal.game_deck, collected)
+            self.assertEqual(len(collected), 32)
+            self.assertEqual(set(collected), set(make_deck()))
+            self.assertEqual(sum(card.points for card in collected), 60)
+            self.assertEqual(deal.zero_point_players, ())
+
+    def test_console_shuffles_previous_collected_deck_without_recreating_it(self):
+        game = ManilleGame(human=False, seed=42)
+        game.play_deal(verbose=False)
+        collected = list(game.game_deck)
+        self.assertEqual(game.deck, collected)
+        shuffle_inputs = []
+        original_shuffle = game.random.shuffle
+
+        def record_shuffle(deck):
+            shuffle_inputs.append(list(deck))
+            original_shuffle(deck)
+
+        with (
+            patch.object(game.random, "shuffle", side_effect=record_shuffle),
+            patch("manille.make_deck", wraps=make_deck) as deck_factory,
+        ):
+            game.play_deal(verbose=False)
+        self.assertEqual(shuffle_inputs, [collected])
+        deck_factory.assert_called_once_with()  # Only deal_hands validation creates a reference.
+        self.assertEqual(len(game.deck), 32)
+        self.assertEqual(set(game.deck), set(collected))
 
     def test_board_rejects_invalid_actions_without_mutation(self):
         board = BoardDeal(0, random.Random(1))
