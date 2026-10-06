@@ -1,0 +1,5 @@
+# Only the application source is needed in the build context.
+**
+!manille.py
+!Dockerfile
+!.dockerignore
