@@ -10,6 +10,14 @@ The game is played with four players, and you are one of them. The game uses a 3
 
 ## Requirements
 
+The application runs from this project folder: use `manille.py` for desktop or
+`play_web.py` for the browser. Python rules live in `manille_core.py`, and computer
+strategies and explanations live in `manille_ai.py`. The browser uses
+`web/core.mjs` for rules, `web/ai.mjs` for strategies, and `web/engine.mjs` for deal
+and match coordination. Keep these modules together in their respective folders.
+The `ai_separation_proposal` folder and ZIP, if present, are reference copies;
+neither is needed to run the installed application.
+
 Choose a local Python installation for the graphical board, or [Docker for console mode](#run-with-docker-no-local-python-required).
 
 - Python **3.10 or newer**. The app has been tested with Python 3.13.2.
@@ -82,6 +90,27 @@ If any player's initial eight-card hand has zero points, the board pauses before
 
 ## Play in a browser
 
+Use the **Taal / Language** selector at the top to choose **Nederlands**,
+**English**, or **Nederlands + English** (the default). Bilingual controls show
+Dutch first and English underneath. The browser remembers this choice when
+storage is available. Switching language updates controls without restarting
+the deal or changing its timers, cards, scores, history, or floating-panel position.
+Browser translation is implemented: controls, card names,
+live messages, rule explanations, decision history and detailed rules support
+all three language modes. Existing history entries translate immediately when
+you change language. Cards use B/V/H/A in Dutch, J/Q/K/A in English and compact
+bilingual ranks such as B/J. Full card names appear in tooltips and accessible labels.
+The internal English suit/rank identifiers and saved deck format stay the same.
+Stage Three adds translation regression checks and small-screen polish. The deck
+preview uses four columns on screens up to 480 pixels wide so bilingual ranks
+remain inside their cards. The desktop and console interfaces remain in English.
+
+**At the Table** opens as a floating decision-history window above the game.
+Drag its heading to reposition it. Click **Dock** to return it to the bottom of
+the page; the button then reads **Float** to bring it back above the game.
+The same history continues updating in either position, and gameplay stays
+interactive while the window is floating.
+
 From this project folder on Windows, run:
 
 ```powershell
@@ -124,12 +153,14 @@ indexing; an unlinked address remains accessible to anyone who knows the URL.
 Browser rule tests require Node.js and use no additional packages:
 
 ```sh
-node --test web/engine.test.mjs web/app.test.mjs
+node --test web/engine.test.mjs web/app.test.mjs web/i18n.test.mjs
 ```
 
 With Node.js available, `py -3 -m unittest test_web_parity` also compares
 3,200 browser card decisions, 610 scoring cases, and 100 Hindu shuffles directly
 with `manille.py`.
+
+When your teammate is currently winning the trick, computers play the highest-value legal card (10, Ace, King, Queen, Jack, 9, 8, 7). This takes priority over the trump and suit-avoidance preferences described below. Equal ranks prefer non-trump. Following suit and all other legality rules still apply. This strategy applies in both browser and desktop games.
 
 ## Other run modes
 

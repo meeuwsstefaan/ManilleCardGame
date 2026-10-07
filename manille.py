@@ -16,258 +16,19 @@ import argparse
 import math
 import random
 import time
-from dataclasses import dataclass
 
 
-SUITS = ("Clubs", "Diamonds", "Hearts", "Spades")
-NULL_TRUMP = "Null"
-TRUMP_CHOICES = SUITS + (NULL_TRUMP,)
-RANKS = ("7", "8", "9", "Jack", "Queen", "King", "Ace", "10")
-POINTS = {
-    "7": 0, "8": 0, "9": 0, "Jack": 1, "Queen": 2,
-    "King": 3, "Ace": 4, "10": 5,
-}
-PLAYER_NAMES = (
-    "You", "Computer 1", "Computer 2 (your teammate)", "Computer 3"
+# Re-export the existing names so callers can still import from manille.
+from manille_core import (
+    SUITS, NULL_TRUMP, TRUMP_CHOICES, RANKS, POINTS, PLAYER_NAMES,
+    Card, Trick, TrickRecord, make_deck, hindu_shuffle, deal_hands,
+    team_of, zero_point_players, match_points, winning_play,
+    partner_is_winning, legal_cards,
 )
-
-
-@dataclass(frozen=True)
-class Card:
-    suit: str
-    rank: str
-
-    @property
-    def strength(self) -> int:
-        return RANKS.index(self.rank)
-
-    @property
-    def points(self) -> int:
-        return POINTS[self.rank]
-
-    def __str__(self) -> str:
-        return f"{self.rank} of {self.suit} ({self.points} points)"
-
-
-Trick = list[tuple[int, Card]]
-
-
-@dataclass(frozen=True)
-class TrickRecord:
-    plays: tuple[tuple[int, Card], ...]
-    trump: str
-    deal_number: int
-    trick_number: int
-
-
-def make_deck() -> list[Card]:
-    return [Card(suit, rank) for suit in SUITS for rank in RANKS]
-
-
-def hindu_shuffle(deck: list[Card], rng: random.Random) -> list[int]:
-    """Pull top packets into a receiving hand, then drop the remainder on top.
-
-    Card 0 is the top of the deck. Each packet retains its internal order;
-    successive packets land on top of the cards already received.
-    Return packet sizes in pickup order, including the final remainder,
-    so the board can animate this exact shuffle without drawing again.
-    """
-    if len(deck) < 2:
-        return [len(deck)] if deck else []
-    remainder = min(rng.randint(3, 6), len(deck) - 1)
-    received: list[Card] = []
-    packets: list[int] = []
-    cursor = 0
-    while len(deck) - cursor > remainder:
-        size = rng.randint(1, min(5, len(deck) - cursor - remainder))
-        received = deck[cursor:cursor + size] + received
-        packets.append(size)
-        cursor += size
-    deck[:] = deck[cursor:] + received
-    return packets + [remainder]
-
-
-def deal_hands(deck: list[Card], dealer: int) -> list[list[Card]]:
-    """Deal consecutive 3-2-3 packets clockwise, starting left of dealer."""
-    if len(deck) != 32 or set(deck) != set(make_deck()):
-        raise ValueError("A deal requires all 32 unique Manille cards.")
-    hands: list[list[Card]] = [[], [], [], []]
-    cursor = 0
-    for packet_size in (3, 2, 3):
-        for offset in range(1, 5):
-            player = (dealer + offset) % 4
-            hands[player].extend(deck[cursor:cursor + packet_size])
-            cursor += packet_size
-    return hands
-
-
-def team_of(player: int) -> int:
-    """Players 0/2 are Team 1; players 1/3 are Team 2."""
-    return player % 2
-
-
-def zero_point_players(hands: list[list[Card]]) -> tuple[int, ...]:
-    """Inspect initial hands; do not apply this check as cards are played."""
-    return tuple(player for player, hand in enumerate(hands)
-                 if sum(card.points for card in hand) == 0)
-
-
-def match_points(deal_points: int, trump: str | None = None, joined: bool = False) -> int:
-    """Count the excess above 30, doubled for Null or joined trump."""
-    multiplier = 2 if trump == NULL_TRUMP or joined else 1
-    return max(deal_points - 30, 0) * multiplier
-
-
-def winning_play(trick: Trick, trump: str) -> tuple[int, Card]:
-    if not trick:
-        raise ValueError("An empty trick has no winner.")
-    led_suit = trick[0][1].suit
-    return max(trick, key=lambda play: (
-        2 if play[1].suit == trump else 1 if play[1].suit == led_suit else 0,
-        play[1].strength,
-    ))
-
-
-def partner_is_winning(player: int, trick: Trick, trump: str) -> bool:
-    if not trick:
-        return False
-    winner, _ = winning_play(trick, trump)
-    return winner == (player + 2) % 4
-
-
-def legal_cards(hand: list[Card], trick: Trick, trump: str) -> list[Card]:
-    """Follow suit; beat its highest card if possible when an opponent wins.
-
-    If a non-trump lead has been trumped, any card of the led suit is legal.
-
-    When void, play trump if available, unless your partner is winning.
-    Overtrump when possible; otherwise any held trump is a forced choice.
-    A lower trump is allowed only when no other legal choice remains,
-    including when following trump suit.
-    """
-    if not trick:
-        return list(hand)
-    # Turns proceed clockwise, so the next player follows the last play.
-    player = (trick[-1][0] + 1) % 4
-    following = [card for card in hand if card.suit == trick[0][1].suit]
-    trumps_played = [card for _, card in trick if card.suit == trump]
-    best_trump = max((card.strength for card in trumps_played), default=-1)
-    winning_trumps = [
-        card for card in hand
-        if card.suit == trump and card.strength > best_trump
-    ]
-    if following:
-        best_following = max(card.strength for _, card in trick
-                             if card.suit == trick[0][1].suit)
-        higher = [card for card in following if card.strength > best_following]
-        choices = (
-            following if partner_is_winning(player, trick, trump)
-            or (trumps_played and trick[0][1].suit != trump)
-            else higher or following
-        )
-    else:
-        trumps = [card for card in hand if card.suit == trump]
-        choices = (
-            list(hand) if partner_is_winning(player, trick, trump)
-            else winning_trumps or trumps or list(hand)
-        )
-    if trumps_played:
-        without_lower_trumps = [
-            card for card in choices
-            if card.suit != trump or card.strength > best_trump
-        ]
-        return without_lower_trumps or choices
-    return choices
-
-
-def record_trumped_suit(trick: Trick, trump: str, trumped_suits: list[set[str]]) -> None:
-    """Remember a publicly observed trump for the trumping player's opponents."""
-    if len(trick) < 2 or trump not in SUITS:
-        return
-    led_suit = trick[0][1].suit
-    player, card = trick[-1]
-    if led_suit != trump and card.suit == trump:
-        trumped_suits[1 - team_of(player)].add(led_suit)
-
-
-def choose_computer_card(
-    player: int, hand: list[Card], trick: Trick, trump: str,
-    trump_chooser: int | None = None,
-    opponent_trumped_suits: set[str] | None = None,
-) -> Card:
-    """A simple team-aware heuristic, without seeing other players' hands.
-
-    Prioritize legal 5-point cards on leads or with a winning partner.
-    Against a winning opponent, win cheaply or discard the cheapest legal card.
-    In Null, play the highest-value legal card, then highest rank, except
-    against an opponent's opening 10: play the cheapest legal card instead.
-    The trump chooser prefers legal trump cards, applying the value strategy
-    within that suit. This recommendation never changes card legality.
-    When the opposing team chose trump, prefer legal non-trump cards.
-    Avoid suits previously trumped by opponents when a legal alternative
-    exists. Mandatory following and trumping still take precedence.
-    Feed points to a winning partner when legal. A later opponent may still
-    win, so this is a basic strategy rather than an optimal playing engine.
-    """
-    choices = legal_cards(hand, trick, trump)
-    if trump == NULL_TRUMP:
-        if trick and trick[0][1].rank == "10" and team_of(trick[0][0]) != team_of(player):
-            return min(choices, key=lambda card: (card.points, card.strength))
-        return max(choices, key=lambda card: (card.points, card.strength))
-    if player == trump_chooser:
-        legal_trumps = [card for card in choices if card.suit == trump]
-        choices = legal_trumps or choices
-    elif trump_chooser is not None and team_of(player) != team_of(trump_chooser):
-        non_trumps = [card for card in choices if card.suit != trump]
-        choices = non_trumps or choices
-    if opponent_trumped_suits:
-        alternatives = [card for card in choices if card.suit not in opponent_trumped_suits]
-        choices = alternatives or choices
-    cheap = lambda card: (card.points, card.suit == trump, card.strength)
-    partner_winning = partner_is_winning(player, trick, trump)
-    fives = [card for card in choices if card.points == 5]
-    if fives and (not trick or partner_winning):
-        return min(fives, key=lambda card: card.suit == trump)
-    if not trick:
-        return min(choices, key=cheap)
-    current_winner, _ = winning_play(trick, trump)
-    if team_of(current_winner) == team_of(player):
-        return max(choices, key=lambda card: (
-            card.points, card.suit != trump, card.strength
-        ))
-    winners = [
-        card for card in choices
-        if winning_play(trick + [(player, card)], trump)[0] == player
-    ]
-    if winners:
-        return min(winners, key=cheap)
-    return min(choices, key=cheap)
-
-
-def choose_computer_trump(hand: list[Card]) -> str:
-    # A conservative no-trump choice with high cards spread across suits.
-    high_cards = [card for card in hand if card.rank in ("Ace", "10")]
-    if (
-        len(high_cards) >= 4
-        and len({card.suit for card in high_cards}) >= 3
-        and sum(card.points for card in hand) >= 24
-    ):
-        return NULL_TRUMP
-    return max(SUITS, key=lambda suit: (
-        sum(card.points for card in hand if card.suit == suit),
-        sum(card.suit == suit for card in hand),
-        sum(card.strength for card in hand if card.suit == suit),
-    ))
-
-
-def choose_computer_join(hand: list[Card], trump: str) -> bool:
-    """Join only with a long, strong trump holding in the computer's own hand."""
-    trumps = [card for card in hand if card.suit == trump]
-    return (
-        trump in SUITS and len(trumps) >= 5
-        and sum(card.points for card in trumps) >= 10
-        and any(card.rank == "10" for card in trumps)
-    )
+from manille_ai import (
+    record_trumped_suit, choose_computer_card, choose_computer_trump,
+    choose_computer_join, explain_computer_card, explain_computer_trump,
+)
 
 
 def read_choice(prompt: str, count: int) -> int:
@@ -1131,13 +892,7 @@ class ManilleBoard:
             d.choose_trump(choose_computer_trump(d.hands[d.dealer]))
             self.write(
                 f"{self.names[d.dealer]} chooses {d.trump}: "
-                + (
-                    "high-value cards across several suits; "
-                    "no trump and double match points."
-                    if d.trump == NULL_TRUMP else
-                    "most card points, then card count, "
-                    "then rank strength in its own hand."
-                )
+                + explain_computer_trump(d.trump)
             )
             self.offer_join()
         elif len(d.trick) == 4:
@@ -1148,51 +903,9 @@ class ManilleBoard:
             hand = d.hands[player]
             avoided = d.trumped_suits[team_of(player)]
             card = choose_computer_card(player, hand, d.trick, d.trump, d.dealer, avoided)
-            if d.trump == NULL_TRUMP:
-                if (d.trick and d.trick[0][1].rank == "10"
-                        and team_of(d.trick[0][0]) != team_of(player)):
-                    reason = "Null: opponent led an unbeatable 10; play the lowest-value legal card."
-                else:
-                    reason = "Null: play the highest-value legal card, prioritizing 5-point 10s."
-            elif card.points == 5 and (
-                not d.trick or partner_is_winning(player, d.trick, d.trump)
-            ):
-                reason = "Play a legal 5-point 10 first, conserving trump on equal points."
-            elif not d.trick:
-                reason = (
-                    "Lead a low-value card, "
-                    "conserving trump on equal points."
-                )
-            elif (
-                team_of(winning_play(d.trick, d.trump)[0])
-                == team_of(player)
-            ):
-                reason = (
-                    "Partner is winning: contribute "
-                    "the highest-value legal card."
-                )
-            elif (
-                winning_play(d.trick + [(player, card)], d.trump)[0]
-                == player
-            ):
-                reason = (
-                    "Take the trick with the "
-                    "lowest-value winning legal card."
-                )
-            else:
-                reason = (
-                    "Cannot win: discard the lowest-value legal card."
-                )
-            if player == d.dealer and card.suit == d.trump:
-                reason = "Trump chooser: prioritize legal trump cards. " + reason
-            if d.trump in SUITS and team_of(player) != team_of(d.dealer) and card.suit != d.trump and any(
-                choice.suit == d.trump for choice in legal_cards(hand, d.trick, d.trump)
-            ):
-                reason = "Opponents chose trump: prefer a legal non-trump card. " + reason
-            if d.trump != NULL_TRUMP and card.suit not in avoided and any(
-                choice.suit in avoided for choice in legal_cards(hand, d.trick, d.trump)
-            ):
-                reason = "Avoid suits previously trumped by opponents. " + reason
+            reason = explain_computer_card(
+                player, hand, d.trick, d.trump, card, d.dealer, avoided,
+            )
             self.play_card(card, reason)
             return
         self.render()

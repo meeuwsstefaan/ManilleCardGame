@@ -1,7 +1,14 @@
-import {Deal, Match, TRUMP_CHOICES, NULL_TRUMP, MATCH_TARGET, NAMES, makeDeck, cardId, hinduShuffle, points, legalCards, winningPlay, chooseComputerCard, chooseComputerTrump, chooseComputerJoin, ruleHint} from './engine.mjs';
+import {Deal, Match, TRUMP_CHOICES, NULL_TRUMP, makeDeck, cardId, hinduShuffle, points, legalCards, winningPlay, chooseComputerCard, chooseComputerTrump, chooseComputerJoin, ruleHint} from './engine.mjs';
+import {setupHistoryPanel} from './history-panel.mjs';
+import {createI18n} from './i18n.mjs';
+let languageStorage;
+try { languageStorage = localStorage; } catch { /* Browser storage is optional. */ }
+const i18n = createI18n(document, languageStorage);
+setupHistoryPanel(document, i18n);
 const $ = id => document.getElementById(id);
 const symbols = {Clubs:'♣', Diamonds:'♦', Hearts:'♥', Spades:'♠'};
-const ranks = {Jack:'J', Queen:'Q', King:'K', Ace:'A'};
+const message = (key, params = {}) => ({key, params});
+const show = (id, key, params = {}) => i18n.label($(id), key, params);
 const DECK_STORAGE_KEY = 'manille.lastCollectedDeck.v1';
 function restoreCollectedDeck() {
   try {
@@ -21,9 +28,9 @@ const COLLECT_MS = 1500;
 let collecting = false, trickCollected = false;
 let lastHand = null, showingLastHand = false;
 
-function log(message) {
+function log(key, params = {}) {
   const item = document.createElement('li');
-  item.textContent = message;
+  i18n.label(item, key, params);
   $('history').prepend(item);
   while ($('history').children.length > 100) $('history').lastChild.remove();
 }
@@ -35,10 +42,15 @@ function cardView(card, {hidden = false, legal = false, winner = false, previous
   element.className = `card${['Diamonds','Hearts'].includes(card.suit) ? ' red' : ''}${hidden ? ' back' : ''}${legal ? ' legal' : ''}${winner ? ' winner' : ''}`;
   if (hidden) {
     element.innerHTML = '<span class="suit" aria-hidden="true">♠</span>';
-    element.setAttribute('aria-label', 'Face-down card');
+    i18n.aria(element, 'faceDown');
   } else {
-    element.innerHTML = `<span class="rank">${ranks[card.rank] || card.rank}</span><span class="suit" aria-hidden="true">${symbols[card.suit]}</span><span class="value">${points(card)} pt</span>`;
-    element.setAttribute('aria-label', `${card.rank} of ${card.suit}, ${points(card)} points${legal ? ', legal to play' : ''}${winner ? previous ? ', won the last trick' : ', currently winning the trick' : ''}`);
+    const rank = document.createElement('span'); rank.className = 'rank';
+    i18n.compact(rank, 'rankShort', {rank: card.rank});
+    const suit = document.createElement('span'); suit.className = 'suit'; suit.textContent = symbols[card.suit]; suit.setAttribute('aria-hidden', 'true');
+    const value = document.createElement('span'); value.className = 'value'; value.textContent = points(card) + ' pt';
+    element.append(rank, suit, value);
+    i18n.aria(element, 'cardAccessible', {card, points: points(card), legal, winner, previous});
+    i18n.title(element, 'cardName', {card});
   }
   if (onPlay) { element.disabled = !legal; element.addEventListener('click', onPlay); }
   return element;
@@ -60,28 +72,28 @@ function renderDeckPreview() {
 function renderShuffle() {
   // Always derive the visible preview from the very deck that will be dealt.
   renderDeckPreview();
-  const order = shuffleCount ? `Shuffled order · shuffle ${shuffleCount}` : deckOrigin;
-  $('deck-order-note').textContent = `${order} · 1–32 · left to right, then the next row`;
+  const order = shuffleCount ? message('shuffledOrder', {count: shuffleCount}) : deckOrigin;
+  show('deck-order-note', 'deckOrder', {order});
   $('trick').replaceChildren();
-  $('trick-label').textContent = `PREPARE DEAL ${dealNumber}`;
-  $('table-message').textContent = 'Read the cards below from left to right. Card 1 is dealt first.';
+  show('trick-label', 'prepareDeal', {number: dealNumber});
+  show('table-message', 'deckInstructions');
   $('our-score').textContent = match.totals[0]; $('their-score').textContent = match.totals[1];
-  $('deal-number').textContent = `Deal ${dealNumber}`; $('trump').textContent = 'Shuffle the deck';
-  $('dealer').textContent = `Dealer: ${NAMES[shuffleDealer]}`;
-  $('deal-score').textContent = '32 cards ready. Match scores are unchanged.';
+  show('deal-number', 'dealNumber', {number: dealNumber}); show('trump', 'shuffleTitle');
+  show('dealer', 'dealer', {player: shuffleDealer});
+  show('deal-score', 'readyCards');
   $('trump-picker').hidden = true; $('join-picker').hidden = true; $('redeal').hidden = true;
   $('next-deal').disabled = true; $('auto').disabled = true; $('step').disabled = true;
   $('shuffle-deck').disabled = shuffling; $('deal-cards').disabled = shuffling;
   $('new-game').disabled = shuffling;
-  $('shuffle-note').textContent = shuffling ? 'Shuffling packets…' : `${shuffleCount} ${shuffleCount === 1 ? 'shuffle' : 'shuffles'} completed. Click the deck to shuffle again, or deal.`;
-  $('status').textContent = shuffling ? 'Wait for the shuffle to finish.' : 'Click the deck for a Hindu shuffle, then choose Deal cards.';
+  show('shuffle-note', shuffling ? 'shuffling' : 'shuffleCount', {count: shuffleCount});
+  show('status', shuffling ? 'waitShuffle' : 'startShuffle');
 }
 
 function render() {
   $('show-last-hand').disabled = !lastHand || shuffleStage || collecting;
-  $('show-last-hand').textContent = showingLastHand ? 'Back to Game' : 'Show Last Hand';
+  i18n.label($('show-last-hand'), showingLastHand ? 'back' : 'lastHand');
   $('show-last-hand').setAttribute('aria-pressed', String(showingLastHand));
-  $('trick').setAttribute('aria-label', showingLastHand ? 'Last completed trick' : 'Current trick');
+  i18n.aria($('trick'), showingLastHand ? 'previousTrick' : 'currentTrick');
   $('table').classList.toggle('shuffle-mode', shuffleStage);
   $('table').classList.toggle('collecting', collecting);
   $('show-hands').disabled = collecting;
@@ -100,10 +112,10 @@ function render() {
     seat.replaceChildren();
 
     const title = document.createElement('h2');
-    title.textContent = NAMES[player];
+    const name = document.createElement('span'); i18n.label(name, 'player', {player}); title.append(name);
     const badge = document.createElement('span');
     badge.className = 'badge';
-    badge.textContent = player === deal.dealer ? 'DEALER' : `TEAM ${player % 2 + 1}`;
+    i18n.label(badge, player === deal.dealer ? 'dealerBadge' : 'team', {team: player % 2 + 1});
     title.append(badge);
 
     const hand = document.createElement('div');
@@ -122,43 +134,41 @@ function render() {
 
   for (let player = 0; player < 4; player++) {
     const slot = document.createElement('div'); slot.className = `trick-slot ${['south', 'west', 'north', 'east'][player]}`;
-    const label = document.createElement('span'); label.textContent = NAMES[player]; slot.append(label);
+    const label = document.createElement('span'); i18n.label(label, 'player', {player}); slot.append(label);
     const played = displayedTrick.find(([who]) => who === player);
     if (played && (showingLastHand || !trickCollected)) slot.append(cardView(played[1], {winner: player === winner, previous: showingLastHand}));
     else { const empty = document.createElement('div'); empty.className = 'empty-card'; slot.append(empty); }
     $('trick').append(slot);
   }
 
-  $('trick-label').textContent = `TRICK ${deal.trickNumber} OF 8`;
-  $('table-message').textContent = complete ? `${NAMES[winner]} wins ${deal.trick.reduce((sum,[,card]) => sum + points(card),0)} points.` : winner !== null ? `${NAMES[winner]} ${winner === 0 ? 'are' : 'is'} winning the trick.` : '10 is high. Your teammate sits opposite.';
-  if (showingLastHand) {
-    $('trick-label').textContent = `LAST HAND: TRICK ${lastHand.number} OF 8`;
-    $('table-message').textContent = `${NAMES[winner]} won ${lastHand.trick.reduce((sum, [, card]) => sum + points(card), 0)} points. Winning card highlighted in gold.`;
-  }
-  $('our-score').textContent = match.totals[0];
-  $('their-score').textContent = match.totals[1];
-  $('deal-number').textContent = `Deal ${dealNumber}`;
-  $('trump').textContent = deal.trump === null ? 'Choose trump' : deal.trump === NULL_TRUMP ? 'Null · no trump · ×2' : `${symbols[deal.trump]} ${deal.trump}${deal.joinedBy !== null ? ' · joined · ×2' : ''}`;
-  $('dealer').textContent = `Dealer: ${NAMES[deal.dealer]}`;
-  $('deal-score').textContent = `Deal points: Your team ${deal.scores[0]} · Opponents ${deal.scores[1]} / 60`;
+  show('trick-label', showingLastHand ? 'lastTrickNumber' : 'trickNumber', {number: showingLastHand ? lastHand.number : deal.trickNumber});
+  if (showingLastHand) show('table-message', 'lastWinner', {player: winner, points: lastHand.trick.reduce((sum, [, card]) => sum + points(card), 0)});
+  else if (complete) show('table-message', 'pointsWon', {player: winner, points: deal.trick.reduce((sum, [, card]) => sum + points(card), 0)});
+  else if (winner !== null) show('table-message', 'winning', {player: winner});
+  else show('table-message', 'tableTip');
+  $('our-score').textContent = match.totals[0]; $('their-score').textContent = match.totals[1];
+  show('deal-number', 'dealNumber', {number: dealNumber});
+  show('trump', deal.trump === null ? 'chooseTrumpTitle' : deal.trump === NULL_TRUMP ? 'nullTrump' : 'trumpSuit', {suit: deal.trump, joined: deal.joinedBy !== null});
+  show('dealer', 'dealer', {player: deal.dealer});
+  show('deal-score', 'rawScores', {ours: deal.scores[0], theirs: deal.scores[1]});
   $('trump-picker').hidden = deal.zeroPointPlayers.length > 0 || deal.trump !== null || deal.dealer !== 0;
   $('join-picker').hidden = !joinPending;
   $('redeal').hidden = !deal.zeroPointPlayers.length;
   $('next-deal').disabled = collecting || !deal.finished || match.winner !== null;
   $('step').disabled = deal.finished || waitingForHuman();
-  $('auto').textContent = running ? 'Pause computers' : 'Resume computers';
+  i18n.label($('auto'), running ? 'pause' : 'resume');
   $('auto').disabled = collecting || showingLastHand || deal.finished || deal.zeroPointPlayers.length > 0;
 
-  if (showingLastHand) $('status').textContent = 'Showing the last completed trick. Play is paused; select Back to Game to continue.';
-  else if (collecting) $('status').textContent = `Collecting the trick for ${NAMES[winner]}.`;
-  else if (match.winner !== null) $('status').textContent = `Match complete: ${match.winner === 0 ? 'your team wins' : 'opponents win'} with ${match.totals[match.winner]} counted points (target ${MATCH_TARGET}). Select New game to play again.`;
-  else if (deal.zeroPointPlayers.length) $('status').textContent = `${deal.zeroPointPlayers.map(player => NAMES[player]).join(', ')} received a zero-point hand. Redeal with the same dealer; match scores stay unchanged.`;
-  else if (joinPending) $('status').textContent = `The opposing team chose ${deal.trump}. Join trump to double this deal's counted points for either team, or pass.`;
-  else if (deal.finished) $('status').textContent = `Deal complete - ${deal.scores[0] === deal.scores[1] ? 'a tie' : deal.scores[0] > deal.scores[1] ? 'your team wins' : 'opponents win'}. Select Next deal to continue toward ${MATCH_TARGET}.`;
-  else if (!deal.trump) $('status').textContent = deal.dealer === 0 ? 'You are the dealer. Choose trump to begin.' : `${NAMES[deal.dealer]} will choose trump.${running ? '' : ' Press Step or Resume.'}`;
-  else if (complete) $('status').textContent = `Trick complete.${running ? ' The next trick starts shortly.' : ' Press Step to start the next trick.'}`;
-  else if (active === 0) $('status').textContent = `Your turn. ${ruleHint(deal.hands[0], deal.trick, deal.trump)}${deal.dealer === 0 && choices.some(card => card.suit === deal.trump) ? ' As trump chooser, playing trump is recommended.' : ''} Click a gold-bordered card.`;
-  else $('status').textContent = `${NAMES[active]}'s turn.${running ? '' : ' Computers paused. Press Step or Resume.'}`;
+  if (showingLastHand) show('status', 'reviewStatus');
+  else if (collecting) show('status', 'collecting', {player: winner});
+  else if (match.winner !== null) show('status', 'matchComplete', {team: match.winner, score: match.totals[match.winner]});
+  else if (deal.zeroPointPlayers.length) show('status', 'zeroHand', {players: deal.zeroPointPlayers});
+  else if (joinPending) show('status', 'joinStatus', {suit: deal.trump});
+  else if (deal.finished) show('status', 'dealComplete', {ours: deal.scores[0], theirs: deal.scores[1]});
+  else if (!deal.trump) show('status', deal.dealer === 0 ? 'humanTrump' : 'computerTrump', {player: deal.dealer, running});
+  else if (complete) show('status', 'trickComplete', {running});
+  else if (active === 0) show('status', 'yourTurn', {rule: ruleHint(deal.hands[0], deal.trick, deal.trump), recommend: deal.dealer === 0 && choices.some(card => card.suit === deal.trump)});
+  else show('status', 'computerTurn', {player: active, running});
 }
 
 function schedule() {
@@ -217,16 +227,16 @@ function play(card) {
   const player = deal.currentPlayer;
   const rule = ruleHint(deal.hands[player], deal.trick, deal.trump);
   deal.play(card);
-  log(`${NAMES[player]} ${player === 0 ? 'play' : 'plays'} ${card.rank} ${symbols[card.suit]} (${points(card)} pt). ${rule}`);
+  log('played', {player, card, points: points(card), rule});
 
   if (deal.trick.length === 4) {
     const winner = winningPlay(deal.trick, deal.trump)[0];
-    log(`${NAMES[winner]} ${winner === 0 ? 'win' : 'wins'} trick ${deal.trickNumber}: ${deal.trick.reduce((sum,[,played]) => sum + points(played),0)} points for Team ${winner % 2 + 1}.`);
+    log('trickWon', {player: winner, number: deal.trickNumber, points: deal.trick.reduce((sum, [, card]) => sum + points(card), 0)});
   }
   if (deal.finished) {
     const earned = match.scoreDeal(deal);
-    log(`Deal points ${deal.scores.join('–')}; counted points +${earned[0]} / +${earned[1]}. Match ${match.totals.join('–')} toward ${MATCH_TARGET}.`);
-    if (match.winner !== null) log(`${match.winner === 0 ? 'Your team' : 'Opponents'} wins the match.`);
+    log('dealScored', {scores: deal.scores, earned, totals: match.totals});
+    if (match.winner !== null) log('matchWon', {team: match.winner});
   }
 }
 
@@ -241,7 +251,7 @@ function advance() {
 
   if (!deal.trump) {
     deal.chooseTrump(chooseComputerTrump(deal.hands[deal.dealer]));
-    log(`${NAMES[deal.dealer]} chooses ${deal.trump}: ${deal.trump === NULL_TRUMP ? 'strong high cards across suits; no trump and double counted points' : 'strongest suit by points, count, then rank'}.`);
+    log('trumpChosen', {player: deal.dealer, suit: deal.trump});
     offerJoin();
   } else if (deal.trick.length === 4) { deal.nextTrick(); trickCollected = false; }
   else play(chooseComputerCard(deal.currentPlayer, deal.hands[deal.currentPlayer], deal.trick, deal.trump, deal.dealer, deal.trumpedSuits[deal.currentPlayer % 2]));
@@ -251,7 +261,7 @@ function advance() {
 
 function startDeal(dealer, deck) {
   clearTimer(); joinPending = false; shuffleStage = false; trickCollected = false; deal = new Deal(dealer, Math.random, deck);
-  log(`Deal ${dealNumber}. ${NAMES[dealer]} ${dealer === 0 ? 'deal' : 'deals'}; ${NAMES[deal.currentPlayer]} ${deal.currentPlayer === 0 ? 'lead' : 'leads'} first.`);
+  log('dealStarted', {number: dealNumber, dealer, leader: deal.currentPlayer});
   afterAction();
 }
 
@@ -260,10 +270,10 @@ function beginShuffle(dealer, deck, origin) {
   lastHand = null; showingLastHand = false;
   clearTimer(); joinPending = false; shuffleStage = true;
   shuffleDealer = dealer; shuffleDeck = [...deck]; shuffleCount = 0; deckOrigin = origin;
-  $('source-count').textContent = '32 cards'; $('receiving-deck').hidden = true;
+  show('source-count', 'cardCount', {count: 32}); $('receiving-deck').hidden = true;
   $('shuffle-flight').replaceChildren();
   trickCollected = false;
-  log(`Deal ${dealNumber}: ${NAMES[dealer]} ${dealer === 0 ? 'deal' : 'deals'}. Click the deck to shuffle, then deal this exact order.`);
+  log('shuffleStarted', {number: dealNumber, player: dealer});
   afterAction();
 }
 
@@ -278,14 +288,14 @@ function shuffleOnce() {
     shuffleTimer = null;
     if (index === packets.length) {
       shuffleDeck = result; shuffling = false; shuffleCount++;
-      $('source-count').textContent = '32 cards'; $('receiving-deck').hidden = true;
+      show('source-count', 'cardCount', {count: 32}); $('receiving-deck').hidden = true;
       $('shuffle-flight').replaceChildren();
-      log(`Hindu shuffle ${shuffleCount} complete. ${packets.length} packets moved; the new order is shown below.`);
+      log('shuffleFinished', {count: shuffleCount, packets: packets.length});
       afterAction(); return;
     }
     const size = packets[index++];
-    $('source-count').textContent = `${32 - received} cards`;
-    $('received-count').textContent = `${received} cards`;
+    show('source-count', 'cardCount', {count: 32 - received});
+    show('received-count', 'cardCount', {count: received});
     const packet = cardView(shuffleDeck[received], {hidden: true});
     packet.className += ' shuffle-packet';
     const count = document.createElement('span'); count.className = 'packet-count'; count.textContent = size;
@@ -300,7 +310,7 @@ function considerComputerJoins() {
   for (let player = 1; player < 4; player++) {
     if (player % 2 !== deal.dealer % 2 && chooseComputerJoin(deal.hands[player], deal.trump)) {
       deal.joinTrump(player);
-      log(`${NAMES[player]} joins ${deal.trump}: double counted points for this deal.`);
+      log('joined', {player, suit: deal.trump});
       break;
     }
   }
@@ -314,11 +324,11 @@ function offerJoin() {
 
 TRUMP_CHOICES.forEach(suit => {
   const button = document.createElement('button');
-  button.textContent = suit === NULL_TRUMP ? 'Null (no trump · ×2)' : `${symbols[suit]} ${suit}`;
+  i18n.label(button, suit === NULL_TRUMP ? 'nullButton' : 'trumpSuit', {suit});
   button.addEventListener('click', () => {
     if (shuffleStage || deal.trump || deal.dealer !== 0) return;
     if (deal.zeroPointPlayers.length) return;
-    deal.chooseTrump(suit); log(`You choose ${suit}${suit === NULL_TRUMP ? ': no trump; double counted points' : ' as trump'}.`); offerJoin(); afterAction();
+    deal.chooseTrump(suit); log('humanChose', {suit}); offerJoin(); afterAction();
   });
   $('suit-buttons').append(button);
 });
@@ -326,14 +336,14 @@ TRUMP_CHOICES.forEach(suit => {
 $('join-trump').addEventListener('click', () => {
   if (!joinPending) return;
   deal.joinTrump(0); joinPending = false;
-  log(`You join ${deal.trump}: double counted points for this deal.`); afterAction();
+  log('joined', {player: 0, suit: deal.trump}); afterAction();
 });
 $('pass-trump').addEventListener('click', () => {
   if (!joinPending) return;
-  log(`You pass on joining ${deal.trump}.`); considerComputerJoins(); joinPending = false; afterAction();
+  log('passed', {suit: deal.trump}); considerComputerJoins(); joinPending = false; afterAction();
 });
 $('redeal').addEventListener('click', () => {
-  if (!shuffleStage && deal.zeroPointPlayers.length) beginShuffle(deal.dealer, shuffleDeck, 'Retained order for this redeal');
+  if (!shuffleStage && deal.zeroPointPlayers.length) beginShuffle(deal.dealer, shuffleDeck, message('redealOrder'));
 });
 
 $('shuffle-deck').addEventListener('click', shuffleOnce);
@@ -354,16 +364,16 @@ $('show-hands').addEventListener('change', render);
 $('next-deal').addEventListener('click', () => {
   if (shuffleStage || collecting || !deal.finished || match.winner !== null) return;
   const previousDeal = dealNumber++;
-  beginShuffle((deal.dealer + 1) % 4, deal.gameDeck, `Collected order from Deal ${previousDeal}`);
+  beginShuffle((deal.dealer + 1) % 4, deal.gameDeck, message('collectedOrder', {number: previousDeal}));
 });
 
 $('new-game').addEventListener('click', () => {
   if (shuffling || collecting) return;
-  if (!confirm('Start a new game and clear the scores?')) return;
+  if (!confirm(i18n.text('newGameConfirm'))) return;
   match = new Match(); dealNumber = 1; $('history').replaceChildren();
   beginShuffle(0, lastCollectedDeck ?? shuffleDeck,
-    lastCollectedDeck ? 'Collected order from the previous deal' : 'Retained deck order');
+    lastCollectedDeck ? message('previousOrder') : message('retainedOrder'));
 });
 
 beginShuffle(0, lastCollectedDeck ?? makeDeck(),
-  lastCollectedDeck ? 'Collected order from the previous deal' : 'Initial deck order');
+  lastCollectedDeck ? message('previousOrder') : message('initialOrder'));

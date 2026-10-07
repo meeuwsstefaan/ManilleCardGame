@@ -26,6 +26,21 @@ from manille import (
 
 
 class ManilleTests(unittest.TestCase):
+    def test_partner_priority_uses_rank_ties_and_respects_legality(self):
+        for player in range(4):
+            trick = [((player + 2) % 4, Card("Clubs", "10")),
+                     ((player + 3) % 4, Card("Clubs", "7"))]
+            cases = (
+                ([Card("Spades", "7"), Card("Hearts", "9")], Card("Hearts", "9")),
+                ([Card("Hearts", "10"), Card("Spades", "10")], Card("Spades", "10")),
+                ([Card("Clubs", "8"), Card("Clubs", "9"), Card("Spades", "10")], Card("Clubs", "9")),
+            )
+            for hand, expected in cases:
+                with self.subTest(player=player, hand=hand):
+                    self.assertEqual(choose_computer_card(
+                        player, hand, trick, "Hearts", player, {"Spades", "Hearts"},
+                    ), expected)
+
     def test_opponents_of_trump_chooser_prefer_non_trumps_at_every_seat(self):
         trump_ten, discard = Card("Hearts", "10"), Card("Clubs", "7")
         for player in range(4):
@@ -39,7 +54,7 @@ class ManilleTests(unittest.TestCase):
                                ((player - 1) % 4, Card("Diamonds", "7"))]
             self.assertEqual(choose_computer_card(
                 player, [trump_ten, discard], partner_winning, "Hearts", (player + 1) % 4,
-            ), discard)
+            ), trump_ten)
         # The latest trump-avoidance preference still applies if the only
         # non-trump alternative is a suit previously trumped by an opponent.
         self.assertEqual(choose_computer_card(
@@ -90,7 +105,7 @@ class ManilleTests(unittest.TestCase):
         trick = [(0, Card("Spades", "10")), (1, Card("Spades", "7"))]
         self.assertEqual(choose_computer_card(
             2, [risky, safe], trick, "Hearts", opponent_trumped_suits={"Clubs"},
-        ), safe)
+        ), risky)
 
     def test_avoiding_trumped_suits_preserves_mandatory_rules_and_null(self):
         for trick, hand, trump, expected in (
@@ -445,11 +460,11 @@ class ManilleTests(unittest.TestCase):
                 self.assertEqual(choose_computer_card(player, hand + [ten], [], trump, player), ten)
                 partner_led = [((player - 2) % 4, Card(led, "10")),
                                ((player - 1) % 4, Card(led, "7"))]
-                self.assertEqual(choose_computer_card(player, hand, partner_led, trump, player), ace)
+                self.assertEqual(choose_computer_card(player, hand, partner_led, trump, player), discard)
                 partner_trump = [((player - 3) % 4, Card(led, "7")),
                                  ((player - 2) % 4, Card(trump, "King")),
                                  ((player - 1) % 4, Card(led, "8"))]
-                self.assertEqual(choose_computer_card(player, hand, partner_trump, trump, player), ace)
+                self.assertEqual(choose_computer_card(player, hand, partner_trump, trump, player), discard)
                 # Preference cannot make an avoidable lower trump legal.
                 self.assertEqual(choose_computer_card(player, [low, discard], partner_trump, trump, player), discard)
                 # Null still uses the highest-value legal card.
@@ -988,7 +1003,7 @@ class ManilleTests(unittest.TestCase):
 
         with (
             patch.object(game.random, "shuffle", side_effect=record_shuffle),
-            patch("manille.make_deck", wraps=make_deck) as deck_factory,
+            patch("manille_core.make_deck", wraps=make_deck) as deck_factory,
         ):
             game.play_deal(verbose=False)
         self.assertEqual(shuffle_inputs, [collected])

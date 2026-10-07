@@ -91,6 +91,22 @@ h1 span {
   background: transparent;
 }
 
+.header-controls { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.language-picker { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.i18n-primary { display: block; }
+.i18n-secondary { display: block; font-size: .8em; font-weight: 400; opacity: .8; margin-top: 3px; }
+h1 span .i18n-primary, h1 span .i18n-secondary { margin-left: 0; }
+summary .summary-title { font: inherit; color: inherit; margin: 0; display: inline-block; }
+summary .i18n-primary, summary .i18n-secondary { margin-left: 0; }
+.history-header h2 .i18n-primary { font: inherit; color: inherit; }
+footer .footer-title { float: none; display: inline-block; font: inherit; }
+footer .i18n-primary, footer .i18n-secondary { float: none; }
+@media (max-width: 760px) {
+  .masthead { flex-wrap: wrap; gap: 16px; }
+  .header-controls { width: 100%; justify-content: space-between; }
+  .language-picker select { max-width: 100%; }
+}
+
 .scorebar {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -328,6 +344,11 @@ h1 span {
 
 @media (prefers-reduced-motion: reduce) {
   .card.shuffle-packet { animation: none; }
+}
+
+@media (max-width: 480px) {
+  .deck-preview { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .shuffle-stacks { max-width: 100%; }
 }
 
 .trick {
@@ -571,6 +592,41 @@ summary span {
   color: #17352b;
   font-weight: 600;
 }
+
+.history-panel {
+  min-width: 0;
+  border: 1px solid #ccd3c4;
+  border-radius: 12px;
+  background: #fffdf7;
+  padding: 14px;
+}
+
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.history-header h2 { margin: 0 0 4px; font: 20px Georgia, serif; }
+.history-header span { font-size: 11px; color: var(--muted); }
+.history-header button { flex-shrink: 0; }
+.history-panel .history { margin-bottom: 0; overflow-wrap: anywhere; }
+.history-panel.floating {
+  position: fixed;
+  z-index: 30;
+  top: 16px;
+  right: 16px;
+  width: min(380px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 40px #102d2a55;
+}
+.history-panel.floating .history-header { cursor: move; touch-action: none; user-select: none; }
+.history-panel.floating .history { min-height: 0; max-height: min(300px, 40dvh); }
+.history-panel.floating .history-header button { cursor: pointer; }
+.history-panel :focus-visible { outline: 3px solid #a87921; outline-offset: 3px; }
 
 .rules {
   font-size: 13px;

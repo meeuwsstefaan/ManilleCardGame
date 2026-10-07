@@ -8,6 +8,24 @@ const hearts = rank => card('Hearts', rank);
 const clubs = rank => card('Clubs', rank);
 const spades = rank => card('Spades', rank);
 const ids = cards => cards.map(cardId);
+
+test('winning partner gets the highest legal rank before all suit preferences', () => {
+  for (let player = 0; player < 4; player++) {
+    const trick = [[(player + 2) % 4, clubs('10')], [(player + 3) % 4, clubs('7')]];
+    for (const chooser of [player, (player + 1) % 4]) {
+      for (const trump of ['Hearts', NULL_TRUMP]) {
+        const hand = [hearts('Ace'), spades('10')];
+        assert.deepEqual(chooseComputerCard(player, hand, trick, trump, chooser, new Set(['Spades'])), spades('10'));
+        assert.deepEqual(chooseComputerCard(player, [hearts('10'), spades('7')], trick, trump, chooser), hearts('10'));
+        assert.deepEqual(chooseComputerCard(player, [clubs('8'), clubs('9'), spades('10')], trick, trump, chooser), clubs('9'));
+      }
+    }
+    assert.deepEqual(chooseComputerCard(player, [spades('7'), hearts('9')], trick, 'Hearts'), hearts('9'));
+    assert.deepEqual(chooseComputerCard(player, [hearts('10'), spades('10')], trick, 'Hearts'), spades('10'));
+    const trumped = [[(player + 1) % 4, clubs('7')], [(player + 2) % 4, hearts('10')], [(player + 3) % 4, clubs('8')]];
+    assert.deepEqual(chooseComputerCard(player, [hearts('Ace'), spades('7')], trumped, 'Hearts'), spades('7'));
+  }
+});
 function random(seed) {
   return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 2 ** 32; };
 }
@@ -51,7 +69,7 @@ test('a supplied deck is dealt exactly as previewed and is not shuffled or mutat
 test('opponent winning: following with a higher card is mandatory', () => {
   const hand = [clubs('7'), clubs('Ace'), hearts('10')];
   assert.deepEqual(ids(legalCards(hand, [[0, clubs('King')]], 'Hearts')), ids([clubs('Ace')]));
-  assert.match(ruleHint(hand, [[0, clubs('King')]], 'Hearts'), /higher card/);
+  assert.deepEqual(ruleHint(hand, [[0, clubs('King')]], 'Hearts'), {key: 'ruleHigher', params: {suit: 'Clubs'}});
 });
 
 test('winning partner permits a lower follow and a discard when void', () => {
@@ -69,7 +87,7 @@ test('forced trump remains mandatory when no overtrump is available', () => {
   const hand = [hearts('7'), spades('10')];
   const trick = [[0, clubs('King')], [1, spades('8')], [2, hearts('Ace')]];
   assert.deepEqual(ids(legalCards(hand, trick, 'Hearts')), ids([hearts('7')]));
-  assert.match(ruleHint(hand, trick, 'Hearts'), /must play trump/);
+  assert.deepEqual(ruleHint(hand, trick, 'Hearts'), {key: 'ruleForcedTrump'});
 });
 
 test('lower trump is excluded with a winning partner when a discard exists', () => {

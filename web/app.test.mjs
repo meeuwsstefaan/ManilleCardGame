@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import {NAMES, makeDeck, winningPlay} from './engine.mjs';
 
 class Element {
+  set textContent(value) { this.children = []; this._text = String(value); }
+  get textContent() { return this.children.length ? this.children.map(child => child.textContent).join('') : this._text; }
   constructor() {
     this.children = []; this.handlers = {}; this.disabled = false; this.hidden = false;
     this.checked = false; this.value = ''; this.textContent = ''; this.className = '';
@@ -17,6 +19,7 @@ class Element {
   get lastChild() { return this.children.at(-1); }
   remove() { this.parent.children.splice(this.parent.children.indexOf(this), 1); }
   setAttribute(name, value) { this.attributes[name] = value; }
+  getAttribute(name) { return this.attributes[name] ?? null; }
   getBoundingClientRect() { return this.rect; }
   addEventListener(event, handler) { this.handlers[event] = handler; }
   click() { if (!this.disabled) this.handlers.click?.(); }
@@ -25,6 +28,7 @@ class Element {
 test('app shuffles and deals the preview, pauses for joining, scores once, and resets', async () => {
   const saved = {document: globalThis.document, setTimeout, clearTimeout, confirm: globalThis.confirm, random: Math.random, localStorage: globalThis.localStorage};
   const stored = new Map();
+  stored.set('manille.language', 'en');
   globalThis.localStorage = {getItem: key => stored.get(key) ?? null, setItem: (key, value) => stored.set(key, value)};
   const elements = new Map();
   const get = id => {
@@ -33,7 +37,13 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
   };
   let seed = 42, pending = null, pendingId = null, timerId = 0;
   Math.random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 2 ** 32; };
-  globalThis.document = {getElementById: get, createElement: () => new Element()};
+  globalThis.document = {getElementById: get, createElement: () => new Element(), documentElement: {dataset: {}},
+    querySelectorAll: selector => {
+      const all = new Set();
+      const visit = el => { if (all.has(el)) return; all.add(el); el.children.forEach(visit); };
+      elements.forEach(visit);
+      return [...all].filter(el => el.getAttribute(selector.slice(1, -1)) !== null);
+    }};
   globalThis.setTimeout = handler => { pending = handler; pendingId = ++timerId; return pendingId; };
   globalThis.clearTimeout = id => { if (id === pendingId) pending = null; };
   globalThis.confirm = () => true;
@@ -46,6 +56,24 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
   const faceName = face => face.attributes['aria-label'].split(',')[0];
   const preview = () => get('deck-preview').children.map(item => faceName(item.children[1]));
   let lastTrick = null, lastWinner = null, reviews = 0;
+  function checkLanguageSwitch() {
+    const before = {timer: pending, scores: score(), history: [...get('history').children],
+      texts: get('history').children.map(el => el.textContent), status: get('status').textContent,
+      faces: [...get('trick-collection').children], trick: [...get('trick').children]};
+    get('language').handlers.change({target: {value: 'nl'}});
+    assert.notEqual(get('status').textContent, before.status);
+    assert.notEqual(get('history').children[0].textContent, before.texts[0]);
+    assert.equal(pending, before.timer);
+    assert.deepEqual(score(), before.scores);
+    assert.deepEqual(get('history').children, before.history);
+    assert.deepEqual(get('trick-collection').children, before.faces);
+    assert.deepEqual(get('trick').children, before.trick);
+    get('language').handlers.change({target: {value: 'both'}});
+    assert.equal(get('status').children[1].lang, 'en');
+    get('language').handlers.change({target: {value: 'en'}});
+    assert.deepEqual(get('history').children.map(el => el.textContent), before.texts);
+    assert.equal(get('status').textContent, before.status);
+  }
   function reviewLastHand() {
     const snapshot = () => get('trick').children.map(slot => slot.children[1].attributes['aria-label']);
     const before = {cards: snapshot(), score: score(), label: get('trick-label').textContent,
@@ -65,6 +93,7 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
     }
     assert.deepEqual(slots.flatMap((slot, player) => slot.children[1].className.includes('winner') ? [player] : []), [lastWinner]);
     assert.match(slots[lastWinner].children[1].attributes['aria-label'], /won the last trick/);
+    if (!reviews) checkLanguageSwitch();
     get('show-hands').handlers.change();
     get('speed').handlers.change();
     assert.equal(pending, null, 'settings cannot restart play during review');
@@ -86,6 +115,7 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
     assert.equal(new Set(preview()).size, 32);
     assert.equal(get('step').disabled, true); assert.equal(get('auto').disabled, true);
     assert.equal(pending, null);
+    checkLanguageSwitch();
     for (let repeat = 0; repeat < 2; repeat++) {
       const before = preview();
       get('shuffle-deck').click();
@@ -93,6 +123,18 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
       assert.equal(get('shuffle-deck').disabled, true);
       assert.equal(get('new-game').disabled, true);
       const seedAfterClick = seed;
+      const animation = pending;
+      const historyBeforeLanguage = [...get('history').children];
+      for (const language of ['nl', 'both', 'en']) {
+        get('language').handlers.change({target: {value: language}});
+        assert.equal(pending, animation, 'language changes preserve the shuffle timer');
+        assert.deepEqual(get('deck-preview').children.map(item => {
+          const card = JSON.parse(item.children[1].getAttribute('data-i18n-aria-values')).card;
+          return `${card.rank} of ${card.suit}`;
+        }), before, 'language changes preserve the deck');
+        assert.deepEqual(get('history').children, historyBeforeLanguage);
+        assert.equal(get('deal-cards').disabled, true);
+      }
       get('shuffle-deck').click(); get('deal-cards').click(); get('new-game').click();
       assert.equal(seed, seedAfterClick);
       assert.deepEqual(preview(), before);
@@ -130,6 +172,20 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
     shuffleAndDeal();
     while (!get('redeal').hidden) { get('redeal').click(); shuffleAndDeal(); }
     assert.equal(get('trump-picker').hidden, false);
+    checkLanguageSwitch();
+    // Concealed hands must stay concealed, including labels and tooltips.
+    get('show-hands').checked = false;
+    get('show-hands').handlers.change();
+    for (const language of ['nl', 'both', 'en']) {
+      get('language').handlers.change({target: {value: language}});
+      for (const player of [1, 2, 3]) for (const card of get(`seat-${player}`).children[1].children) {
+        assert.equal(card.getAttribute('data-i18n-aria'), 'faceDown');
+        assert.equal(card.getAttribute('title'), null);
+        assert.equal(card.getAttribute('data-i18n-aria-values'), '{}');
+      }
+    }
+    get('show-hands').checked = true;
+    get('show-hands').handlers.change();
     get('suit-buttons').children[4].click(); // Human declares Null.
     assert.match(get('trump').textContent, /Null.*×2/);
     assert.equal(get('join-picker').hidden, true);
@@ -172,6 +228,7 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
         assert.equal(layer.children[0].style.properties['--target-x'], `${target.left + target.width / 2 - 34}px`);
         assert.equal(layer.children[0].style.properties['--target-y'], `${target.top + target.height / 2 - 48}px`);
         const before = score(), label = get('trick-label').textContent;
+        if (!collections) checkLanguageSwitch();
         for (const id of ['next-deal', 'step', 'auto', 'new-game', 'show-last-hand']) {
           assert.equal(get(id).disabled, true); get(id).click();
         }
@@ -190,6 +247,7 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
       if (lastTrick) reviewLastHand();
       if (!get('redeal').hidden) { get('redeal').click(); continue; }
       if (!get('join-picker').hidden) {
+        checkLanguageSwitch();
         observedJoin = true;
         assert.equal(pending, null);
         assert.ok(hand().every(button => button.disabled));
@@ -203,6 +261,7 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
         continue;
       }
       if (String(get('status').textContent).startsWith('Match complete:')) {
+        checkLanguageSwitch();
         assert.ok(Math.max(...score()) >= 101);
         assert.equal(get('next-deal').disabled, true);
         assert.equal(get('step').disabled, true);
@@ -212,6 +271,7 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
         break;
       }
       if (!get('next-deal').disabled) {
+        checkLanguageSwitch();
         completed++;
         const raw = String(get('deal-score').textContent).match(/Your team (\d+).*Opponents (\d+)/);
         const double = String(get('trump').textContent).includes('×2');
