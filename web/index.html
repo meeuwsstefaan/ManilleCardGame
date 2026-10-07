@@ -56,6 +56,7 @@
       <div class="controls">
         <button id="auto" class="primary">Pause computers</button>
         <button id="step">Step: one action</button>
+        <button id="show-last-hand" disabled aria-pressed="false" aria-controls="trick">Show Last Hand</button>
         <button id="next-deal" disabled>Next deal</button>
         <label>Speed <select id="speed"><option value="1200">Relaxed</option><option value="650" selected>Normal</option><option value="200">Fast</option></select></label>
         <label class="check"><input type="checkbox" id="show-hands" checked> Show all hands</label>
@@ -68,6 +69,7 @@
       <details><summary>How to play <span>The rules used here</span></summary>
         <div class="rules"><p>Click the deck for one animated Hindu shuffle. Inspect the numbered 32-card order below it, shuffle again if desired, then click <b>Deal cards</b>. That exact order is dealt. After a completed deal, the preview shows the collected tricks in their original play order. <b>Next deal</b> returns to this shuffle stage. The last collected deck is also retained for New game and saved in this browser for page refreshes. Only the first visit, before any deck has been saved, starts in suit/rank order.</p><p>You sit at the bottom; your teammate sits opposite. Choose trump when you deal, then click a gold-bordered card on your turn. Computer turns advance automatically; pause or step to inspect each decision.</p>
         <p>Follow the led suit. When an opponent is winning, beat the highest card of that suit if possible, unless a non-trump lead has already been trumped. If your teammate is winning, a higher card is optional. When unable to follow, trump is mandatory against an opponent if you hold trump; with a winning teammate, you may discard instead. Overtrump when possible. Lower trumps are allowed only when forced, including when trump is led.</p>
+        <p>After a trick is collected, click <b>Show Last Hand</b> to review its four cards and gold-highlighted winner. Play pauses while you review. Click <b>Back to Game</b> to return to the current trick. Each new deal clears the last-hand review.</p>
         <p>The dealer may choose <b>Null</b>: no suit is trump. After a suit is chosen, an opponent may <b>join trump</b> before the first card. You get the first choice when eligible; after you pass, your teammate may join. Null cannot be joined.</p>
         <p>Rank: <b>10, A, K, Q, J, 9, 8, 7.</b> Points: <b>5, 4, 3, 2, 1, 0, 0, 0.</b> Each deal has 60 raw card points. Only the excess above 30 counts toward the match: 40–20 earns 10–0, or 20–0 with Null or joined trump. A 30–30 tie earns zero. Doubling applies once. The match ends at <b>101 or more</b> counted points.</p>
         <p>Cards are dealt in 3–2–3 packets, starting left of the dealer. An initial zero-point hand requires a redeal with the same dealer and scores.</p>

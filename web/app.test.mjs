@@ -45,7 +45,43 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
   const score = () => [Number(get('our-score').textContent), Number(get('their-score').textContent)];
   const faceName = face => face.attributes['aria-label'].split(',')[0];
   const preview = () => get('deck-preview').children.map(item => faceName(item.children[1]));
+  let lastTrick = null, lastWinner = null, reviews = 0;
+  function reviewLastHand() {
+    const snapshot = () => get('trick').children.map(slot => slot.children[1].attributes['aria-label']);
+    const before = {cards: snapshot(), score: score(), label: get('trick-label').textContent,
+      history: get('history').children.length, auto: get('auto').textContent, scheduled: Boolean(pending)};
+    assert.equal(get('show-last-hand').disabled, false);
+    get('show-last-hand').click();
+    assert.equal(get('show-last-hand').textContent, 'Back to Game');
+    assert.equal(get('show-last-hand').attributes['aria-pressed'], 'true');
+    assert.match(get('trick-label').textContent, /^LAST HAND: TRICK/);
+    assert.equal(pending, null, 'review pauses automatic play');
+    assert.equal(get('step').disabled, true);
+    assert.equal(get('auto').disabled, true);
+    assert.ok(hand().every(button => button.disabled));
+    const slots = get('trick').children;
+    for (const [player, card] of lastTrick) {
+      assert.equal(faceName(slots[player].children[1]), `${card.rank} of ${card.suit}`);
+    }
+    assert.deepEqual(slots.flatMap((slot, player) => slot.children[1].className.includes('winner') ? [player] : []), [lastWinner]);
+    assert.match(slots[lastWinner].children[1].attributes['aria-label'], /won the last trick/);
+    get('show-hands').handlers.change();
+    get('speed').handlers.change();
+    assert.equal(pending, null, 'settings cannot restart play during review');
+    get('show-last-hand').click();
+    assert.equal(get('show-last-hand').textContent, 'Show Last Hand');
+    assert.equal(get('show-last-hand').attributes['aria-pressed'], 'false');
+    assert.deepEqual(snapshot(), before.cards, 'restore even a partially played current trick');
+    assert.deepEqual(score(), before.score);
+    assert.equal(get('history').children.length, before.history);
+    assert.equal(get('trick-label').textContent, before.label);
+    assert.equal(get('auto').textContent, before.auto);
+    assert.equal(Boolean(pending), before.scheduled, 'preserve pause/resume state');
+    reviews++;
+  }
   function shuffleAndDeal() {
+    assert.equal(get('show-last-hand').disabled, true);
+    lastTrick = null;
     assert.equal(get('deck-preview').children.length, 32);
     assert.equal(new Set(preview()).size, 32);
     assert.equal(get('step').disabled, true); assert.equal(get('auto').disabled, true);
@@ -136,12 +172,14 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
         assert.equal(layer.children[0].style.properties['--target-x'], `${target.left + target.width / 2 - 34}px`);
         assert.equal(layer.children[0].style.properties['--target-y'], `${target.top + target.height / 2 - 48}px`);
         const before = score(), label = get('trick-label').textContent;
-        for (const id of ['next-deal', 'step', 'auto', 'new-game']) {
+        for (const id of ['next-deal', 'step', 'auto', 'new-game', 'show-last-hand']) {
           assert.equal(get(id).disabled, true); get(id).click();
         }
         assert.equal(get('trick-label').textContent, label); assert.deepEqual(score(), before);
         assert.ok(pending, 'collection must finish even while computers are paused');
         const callback = pending; pending = null; callback();
+        lastTrick = trick; lastWinner = highlighted[0];
+        reviewLastHand();
         assert.equal(layer.children.length, 0);
         assert.deepEqual(score(), before);
         assert.ok(get('trick').children.every(slot => slot.children[1].className === 'empty-card'));
@@ -149,6 +187,7 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
         if (String(label).includes('8 OF 8')) finalCollections++;
         continue;
       }
+      if (lastTrick) reviewLastHand();
       if (!get('redeal').hidden) { get('redeal').click(); continue; }
       if (!get('join-picker').hidden) {
         observedJoin = true;
@@ -198,8 +237,12 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
     assert.deepEqual([...observedTrickSizes].sort(), [1, 2, 3, 4]);
     assert.equal(collections, (completed + 1) * 8);
     assert.equal(finalCollections, completed + 1);
+    assert.ok(reviews > collections, 'also review while a new trick is in progress');
     assert.ok(completed > 1); assert.ok(observedJoin); assert.equal(joined, 1); assert.ok(passed > 0);
+    get('show-last-hand').click();
     get('new-game').click();
+    assert.equal(get('show-last-hand').disabled, true);
+    assert.equal(get('show-last-hand').attributes['aria-pressed'], 'false');
     assert.deepEqual(score(), [0, 0]);
     assert.equal(get('deal-number').textContent, 'Deal 1');
     assert.equal(get('join-picker').hidden, true);

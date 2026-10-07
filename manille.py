@@ -199,7 +199,8 @@ def choose_computer_card(
 
     Prioritize legal 5-point cards on leads or with a winning partner.
     Against a winning opponent, win cheaply or discard the cheapest legal card.
-    In Null, always play the highest-value legal card, then highest rank.
+    In Null, play the highest-value legal card, then highest rank, except
+    against an opponent's opening 10: play the cheapest legal card instead.
     The trump chooser prefers legal trump cards, applying the value strategy
     within that suit. This recommendation never changes card legality.
     When the opposing team chose trump, prefer legal non-trump cards.
@@ -210,6 +211,8 @@ def choose_computer_card(
     """
     choices = legal_cards(hand, trick, trump)
     if trump == NULL_TRUMP:
+        if trick and trick[0][1].rank == "10" and team_of(trick[0][0]) != team_of(player):
+            return min(choices, key=lambda card: (card.points, card.strength))
         return max(choices, key=lambda card: (card.points, card.strength))
     if player == trump_chooser:
         legal_trumps = [card for card in choices if card.suit == trump]
@@ -1146,7 +1149,11 @@ class ManilleBoard:
             avoided = d.trumped_suits[team_of(player)]
             card = choose_computer_card(player, hand, d.trick, d.trump, d.dealer, avoided)
             if d.trump == NULL_TRUMP:
-                reason = "Null: play the highest-value legal card, prioritizing 5-point 10s."
+                if (d.trick and d.trick[0][1].rank == "10"
+                        and team_of(d.trick[0][0]) != team_of(player)):
+                    reason = "Null: opponent led an unbeatable 10; play the lowest-value legal card."
+                else:
+                    reason = "Null: play the highest-value legal card, prioritizing 5-point 10s."
             elif card.points == 5 and (
                 not d.trick or partner_is_winning(player, d.trick, d.trump)
             ):

@@ -375,7 +375,7 @@ class ManilleTests(unittest.TestCase):
                 player = (trick[-1][0] + 1) % 4 if trick else 1
                 hand = [Card("Clubs", "7"), Card("Clubs", "Ace"), Card("Clubs", "10")]
                 with self.subTest(trump=trump, trick=trick):
-                    expected = hand[0] if trump != NULL_TRUMP and len(trick) == 1 else hand[2]
+                    expected = hand[0] if len(trick) == 1 else hand[2]
                     self.assertEqual(choose_computer_card(player, hand, trick, trump), expected)
 
     def test_opponent_winning_computer_conserves_points_with_legal_cards(self):
@@ -467,10 +467,10 @@ class ManilleTests(unittest.TestCase):
         no_trump = [Card("Spades", "10"), Card("Clubs", "7")]
         self.assertEqual(choose_computer_card(1, no_trump, lead, "Hearts", 1), no_trump[1])
 
-    def test_null_computer_prioritizes_high_values_on_every_turn(self):
+    def test_null_computer_prioritizes_high_values_except_opponent_opening_ten(self):
         for trick in (
             [],
-            [(0, Card("Clubs", "10"))],  # Opponent winning; cannot win.
+            [(0, Card("Clubs", "King"))],  # Other leads retain the existing strategy.
             [(3, Card("Clubs", "10")), (0, Card("Clubs", "7"))],  # Partner winning.
         ):
             player = (trick[-1][0] + 1) % 4 if trick else 1
@@ -486,9 +486,30 @@ class ManilleTests(unittest.TestCase):
         trick = [(0, Card("Clubs", "10"))]
         hand = [Card("Clubs", "8"), Card("Clubs", "King"),
                 Card("Hearts", "10"), Card("Diamonds", "Ace")]
-        self.assertEqual(choose_computer_card(1, hand, trick, NULL_TRUMP), hand[1])
+        self.assertEqual(choose_computer_card(1, hand, trick, NULL_TRUMP), hand[0])
         trick = [(0, Card("Clubs", "7"))]
         self.assertEqual(choose_computer_card(1, hand, trick, NULL_TRUMP), hand[1])
+
+    def test_null_opponent_opening_ten_saves_points_in_every_seat(self):
+        for leader in range(4):
+            trick = [(leader, Card("Clubs", "10"))]
+            for offset in (1, 2, 3):
+                player = (leader + offset) % 4
+                partner_led = offset == 2
+                for hand, cheap, valuable in (
+                    ([Card("Clubs", r) for r in ("King", "9", "7", "8")],
+                     Card("Clubs", "7"), Card("Clubs", "King")),
+                    ([Card("Hearts", r) for r in ("10", "9", "7", "8")],
+                     Card("Hearts", "7"), Card("Hearts", "10")),
+                    ([Card("Clubs", "King"), Card("Clubs", "Jack"), Card("Hearts", "7")],
+                     Card("Clubs", "Jack"), Card("Clubs", "King")),
+                ):
+                    with self.subTest(leader=leader, player=player, hand=hand):
+                        self.assertEqual(
+                            choose_computer_card(player, hand, trick, NULL_TRUMP),
+                            valuable if partner_led else cheap,
+                        )
+                trick.append((player, Card("Spades", str(6 + offset))))
 
     def test_computer_selects_null_for_distributed_high_cards(self):
         hand = [

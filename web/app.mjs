@@ -19,6 +19,7 @@ let shuffling = false, shuffleTimer = null;
 const PACKET_MS = 160;
 const COLLECT_MS = 1500;
 let collecting = false, trickCollected = false;
+let lastHand = null, showingLastHand = false;
 
 function log(message) {
   const item = document.createElement('li');
@@ -29,7 +30,7 @@ function log(message) {
 
 function clearTimer() { clearTimeout(timer); timer = null; }
 
-function cardView(card, {hidden = false, legal = false, winner = false, onPlay = null} = {}) {
+function cardView(card, {hidden = false, legal = false, winner = false, previous = false, onPlay = null} = {}) {
   const element = document.createElement(onPlay ? 'button' : 'div');
   element.className = `card${['Diamonds','Hearts'].includes(card.suit) ? ' red' : ''}${hidden ? ' back' : ''}${legal ? ' legal' : ''}${winner ? ' winner' : ''}`;
   if (hidden) {
@@ -37,14 +38,14 @@ function cardView(card, {hidden = false, legal = false, winner = false, onPlay =
     element.setAttribute('aria-label', 'Face-down card');
   } else {
     element.innerHTML = `<span class="rank">${ranks[card.rank] || card.rank}</span><span class="suit" aria-hidden="true">${symbols[card.suit]}</span><span class="value">${points(card)} pt</span>`;
-    element.setAttribute('aria-label', `${card.rank} of ${card.suit}, ${points(card)} points${legal ? ', legal to play' : ''}${winner ? ', currently winning the trick' : ''}`);
+    element.setAttribute('aria-label', `${card.rank} of ${card.suit}, ${points(card)} points${legal ? ', legal to play' : ''}${winner ? previous ? ', won the last trick' : ', currently winning the trick' : ''}`);
   }
   if (onPlay) { element.disabled = !legal; element.addEventListener('click', onPlay); }
   return element;
 }
 
 function waitingForHuman() {
-  return shuffleStage || collecting || deal.zeroPointPlayers.length > 0 || joinPending || (!deal.finished && (deal.trump === null ? deal.dealer === 0 : deal.trick.length < 4 && deal.currentPlayer === 0));
+  return shuffleStage || collecting || showingLastHand || deal.zeroPointPlayers.length > 0 || joinPending || (!deal.finished && (deal.trump === null ? deal.dealer === 0 : deal.trick.length < 4 && deal.currentPlayer === 0));
 }
 
 function renderDeckPreview() {
@@ -77,6 +78,10 @@ function renderShuffle() {
 }
 
 function render() {
+  $('show-last-hand').disabled = !lastHand || shuffleStage || collecting;
+  $('show-last-hand').textContent = showingLastHand ? 'Back to Game' : 'Show Last Hand';
+  $('show-last-hand').setAttribute('aria-pressed', String(showingLastHand));
+  $('trick').setAttribute('aria-label', showingLastHand ? 'Last completed trick' : 'Current trick');
   $('table').classList.toggle('shuffle-mode', shuffleStage);
   $('table').classList.toggle('collecting', collecting);
   $('show-hands').disabled = collecting;
@@ -86,7 +91,7 @@ function render() {
   if (shuffleStage) { renderShuffle(); return; }
   $('new-game').disabled = collecting;
   const complete = deal.trick.length === 4;
-  const active = deal.trump !== null && !joinPending && !complete && !deal.finished ? deal.currentPlayer : null;
+  const active = !showingLastHand && deal.trump !== null && !joinPending && !complete && !deal.finished ? deal.currentPlayer : null;
   const choices = active !== null ? legalCards(deal.hands[active], deal.trick, deal.trump) : [];
 
   for (let player = 0; player < 4; player++) {
@@ -111,20 +116,25 @@ function render() {
     seat.append(title, hand);
   }
 
-  const winner = deal.trick.length ? winningPlay(deal.trick, deal.trump)[0] : null;
+  const displayedTrick = showingLastHand ? lastHand.trick : deal.trick;
+  const winner = showingLastHand ? lastHand.winner : deal.trick.length ? winningPlay(deal.trick, deal.trump)[0] : null;
   $('trick').replaceChildren();
 
   for (let player = 0; player < 4; player++) {
     const slot = document.createElement('div'); slot.className = `trick-slot ${['south', 'west', 'north', 'east'][player]}`;
     const label = document.createElement('span'); label.textContent = NAMES[player]; slot.append(label);
-    const played = deal.trick.find(([who]) => who === player);
-    if (played && !trickCollected) slot.append(cardView(played[1], {winner: player === winner}));
+    const played = displayedTrick.find(([who]) => who === player);
+    if (played && (showingLastHand || !trickCollected)) slot.append(cardView(played[1], {winner: player === winner, previous: showingLastHand}));
     else { const empty = document.createElement('div'); empty.className = 'empty-card'; slot.append(empty); }
     $('trick').append(slot);
   }
 
   $('trick-label').textContent = `TRICK ${deal.trickNumber} OF 8`;
   $('table-message').textContent = complete ? `${NAMES[winner]} wins ${deal.trick.reduce((sum,[,card]) => sum + points(card),0)} points.` : winner !== null ? `${NAMES[winner]} ${winner === 0 ? 'are' : 'is'} winning the trick.` : '10 is high. Your teammate sits opposite.';
+  if (showingLastHand) {
+    $('trick-label').textContent = `LAST HAND: TRICK ${lastHand.number} OF 8`;
+    $('table-message').textContent = `${NAMES[winner]} won ${lastHand.trick.reduce((sum, [, card]) => sum + points(card), 0)} points. Winning card highlighted in gold.`;
+  }
   $('our-score').textContent = match.totals[0];
   $('their-score').textContent = match.totals[1];
   $('deal-number').textContent = `Deal ${dealNumber}`;
@@ -137,9 +147,10 @@ function render() {
   $('next-deal').disabled = collecting || !deal.finished || match.winner !== null;
   $('step').disabled = deal.finished || waitingForHuman();
   $('auto').textContent = running ? 'Pause computers' : 'Resume computers';
-  $('auto').disabled = collecting || deal.finished || deal.zeroPointPlayers.length > 0;
+  $('auto').disabled = collecting || showingLastHand || deal.finished || deal.zeroPointPlayers.length > 0;
 
-  if (collecting) $('status').textContent = `Collecting the trick for ${NAMES[winner]}.`;
+  if (showingLastHand) $('status').textContent = 'Showing the last completed trick. Play is paused; select Back to Game to continue.';
+  else if (collecting) $('status').textContent = `Collecting the trick for ${NAMES[winner]}.`;
   else if (match.winner !== null) $('status').textContent = `Match complete: ${match.winner === 0 ? 'your team wins' : 'opponents win'} with ${match.totals[match.winner]} counted points (target ${MATCH_TARGET}). Select New game to play again.`;
   else if (deal.zeroPointPlayers.length) $('status').textContent = `${deal.zeroPointPlayers.map(player => NAMES[player]).join(', ')} received a zero-point hand. Redeal with the same dealer; match scores stay unchanged.`;
   else if (joinPending) $('status').textContent = `The opposing team chose ${deal.trump}. Join trump to double this deal's counted points for either team, or pass.`;
@@ -192,6 +203,7 @@ function collectTrick() {
   });
   setTimeout(() => {
     layer.replaceChildren(); collecting = false; trickCollected = true;
+    lastHand = {trick: deal.trick.map(([player, card]) => [player, {...card}]), winner, number: deal.trickNumber};
     if (deal.finished) {
       lastCollectedDeck = [...deal.gameDeck];
       try { localStorage.setItem(DECK_STORAGE_KEY, JSON.stringify(lastCollectedDeck)); }
@@ -219,7 +231,7 @@ function play(card) {
 }
 
 function playHuman(card) {
-  if (shuffleStage || collecting || joinPending || deal.trump === null || deal.finished || deal.trick.length === 4 || deal.currentPlayer !== 0) return;
+  if (shuffleStage || collecting || showingLastHand || joinPending || deal.trump === null || deal.finished || deal.trick.length === 4 || deal.currentPlayer !== 0) return;
   play(card); afterAction();
 }
 
@@ -245,6 +257,7 @@ function startDeal(dealer, deck) {
 
 function beginShuffle(dealer, deck, origin) {
   if (shuffling || collecting) return;
+  lastHand = null; showingLastHand = false;
   clearTimer(); joinPending = false; shuffleStage = true;
   shuffleDealer = dealer; shuffleDeck = [...deck]; shuffleCount = 0; deckOrigin = origin;
   $('source-count').textContent = '32 cards'; $('receiving-deck').hidden = true;
@@ -328,7 +341,12 @@ $('deal-cards').addEventListener('click', () => {
   if (shuffleStage && !shuffling) startDeal(shuffleDealer, shuffleDeck);
 });
 
-$('auto').addEventListener('click', () => { if (collecting || shuffleStage) return; running = !running; afterAction(); });
+$('show-last-hand').addEventListener('click', () => {
+  if (!lastHand || shuffleStage || collecting) return;
+  showingLastHand = !showingLastHand;
+  clearTimer(); render(); schedule();
+});
+$('auto').addEventListener('click', () => { if (collecting || shuffleStage || showingLastHand) return; running = !running; afterAction(); });
 $('step').addEventListener('click', () => { running = false; advance(); });
 $('speed').addEventListener('change', schedule);
 $('show-hands').addEventListener('change', render);

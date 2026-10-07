@@ -68,7 +68,12 @@ export function legalCards(hand, trick, trump) {
 
 export function chooseComputerCard(player, hand, trick, trump, trumpChooser = null, opponentTrumpedSuits = new Set()) {
   let choices = legalCards(hand, trick, trump);
-  if (trump === NULL_TRUMP) return best(choices, card => [points(card), strength(card)]);
+  if (trump === NULL_TRUMP) {
+    // An opponent's opening 10 cannot be beaten without trump; save points.
+    const opponentLedTen = trick.length && trick[0][1].rank === '10'
+      && trick[0][0] % 2 !== player % 2;
+    return best(choices, card => [points(card), strength(card)], opponentLedTen ? -1 : 1);
+  }
   if (player === trumpChooser) {
     const trumps = choices.filter(card => card.suit === trump);
     if (trumps.length) choices = trumps;

@@ -91,6 +91,24 @@ test('Null has no trump and computer picks highest-value legal card', () => {
   assert.deepEqual(chooseComputerCard(1, [clubs('7'), clubs('Ace'), spades('10')], trick, NULL_TRUMP), clubs('Ace'));
 });
 
+test('Null saves points against an opponent opening 10 in every seat, respecting follow suit', () => {
+  for (let leader = 0; leader < 4; leader++) {
+    const trick = [[leader, clubs('10')]];
+    for (let offset = 1; offset <= 3; offset++) {
+      const player = (leader + offset) % 4;
+      for (const [hand, cheap, valuable] of [
+        [['King', '9', '7', '8'].map(clubs), clubs('7'), clubs('King')],
+        [['10', '9', '7', '8'].map(hearts), hearts('7'), hearts('10')],
+        [[clubs('King'), clubs('Jack'), hearts('7')], clubs('Jack'), clubs('King')],
+      ]) {
+        assert.deepEqual(chooseComputerCard(player, hand, trick, NULL_TRUMP),
+          offset === 2 ? valuable : cheap);
+      }
+      trick.push([player, spades(String(6 + offset))]);
+    }
+  }
+});
+
 test('computers choose Null and join only with desktop thresholds', () => {
   const strongNull = [clubs('10'), clubs('Ace'), hearts('10'), hearts('Ace'), spades('10'), spades('Ace'), clubs('7'), hearts('7')];
   assert.equal(chooseComputerTrump(strongNull), NULL_TRUMP);
