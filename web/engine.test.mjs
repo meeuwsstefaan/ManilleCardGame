@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Deal, Match, NULL_TRUMP, TRUMP_CHOICES, makeDeck, cardId, legalCards,
-  winningPlay, chooseComputerCard, chooseComputerTrump, chooseComputerJoin, matchPoints, ruleHint} from './engine.mjs';
+  hinduShuffle, winningPlay, chooseComputerCard, chooseComputerTrump, chooseComputerJoin, matchPoints, ruleHint} from './engine.mjs';
 
 const card = (suit, rank) => ({suit, rank});
 const hearts = rank => card('Hearts', rank);
@@ -17,6 +17,36 @@ function ready(dealer = 0, seed = 42) {
   do { deal = new Deal(dealer, rng); } while (deal.zeroPointPlayers.length);
   return deal;
 }
+
+test('Hindu shuffle moves actual packets and preserves order within each packet', () => {
+  for (let seed = 1; seed <= 100; seed++) {
+    const original = makeDeck(); const shuffled = [...original];
+    const packets = hinduShuffle(shuffled, random(seed));
+    assert.equal(packets.reduce((a, b) => a + b, 0), 32);
+    assert.ok(packets.at(-1) >= 3 && packets.at(-1) <= 6);
+    assert.ok(packets.slice(0, -1).every(size => size >= 1 && size <= 5));
+    let cursor = 0, result = [];
+    for (const size of packets) {
+      result = [...original.slice(cursor, cursor + size), ...result]; cursor += size;
+    }
+    assert.deepEqual(ids(shuffled), ids(result));
+    assert.equal(new Set(ids(shuffled)).size, 32);
+  }
+});
+
+test('a supplied deck is dealt exactly as previewed and is not shuffled or mutated', () => {
+  const deck = makeDeck(); hinduShuffle(deck, random(42));
+  const original = [...deck];
+  const deal = new Deal(2, () => { throw new Error('Must not shuffle again.'); }, deck);
+  assert.deepEqual(deck, original);
+  const expected = [[], [], [], []]; let cursor = 0;
+  for (const packet of [3, 2, 3]) for (let offset = 1; offset <= 4; offset++) {
+    expected[(2 + offset) % 4].push(...deck.slice(cursor, cursor + packet)); cursor += packet;
+  }
+  for (let player = 0; player < 4; player++) assert.deepEqual(new Set(ids(deal.hands[player])), new Set(ids(expected[player])));
+  assert.throws(() => new Deal(0, Math.random, deck.slice(1)));
+  assert.throws(() => new Deal(0, Math.random, [...deck.slice(1), deck[1]]));
+});
 
 test('opponent winning: following with a higher card is mandatory', () => {
   const hand = [clubs('7'), clubs('Ace'), hearts('10')];
@@ -138,14 +168,17 @@ test('many complete deals preserve all 32 cards and 60 points in every contract'
     const deal = ready(seed % 4, seed);
     deal.chooseTrump(TRUMP_CHOICES[seed % TRUMP_CHOICES.length]);
     if (deal.trump !== NULL_TRUMP && seed % 2) deal.joinTrump((deal.dealer + 1) % 4);
+    const playedOrder = [];
     while (!deal.finished) {
       if (deal.trick.length === 4) deal.nextTrick();
       const player = deal.currentPlayer;
-      deal.play(chooseComputerCard(player, deal.hands[player], deal.trick, deal.trump, deal.dealer, deal.trumpedSuits[player % 2]));
+      const chosen = chooseComputerCard(player, deal.hands[player], deal.trick, deal.trump, deal.dealer, deal.trumpedSuits[player % 2]);
+      playedOrder.push(chosen); deal.play(chosen);
     }
     assert.equal(deal.scores[0] + deal.scores[1], 60);
     assert.equal(new Set(ids(deal.captured.flat())).size, 32);
     assert.equal(deal.trickNumber, 8);
+    assert.deepEqual(deal.gameDeck, playedOrder);
     assert.throws(() => deal.play(deal.trick[0][1]));
   }
 });

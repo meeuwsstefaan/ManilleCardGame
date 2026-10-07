@@ -221,12 +221,125 @@ h1 span {
   color: #d4dbc6;
 }
 
+.table.shuffle-mode {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto;
+  grid-template-areas: "center";
+}
+
+.seat[hidden],
+.trick[hidden],
+#shuffle-panel[hidden],
+#receiving-deck[hidden] {
+  display: none;
+}
+
+.shuffle-stacks {
+  position: relative;
+  width: 260px;
+  height: 145px;
+  margin: 26px auto 0;
+}
+
+.deck-stack {
+  position: absolute;
+  top: 0;
+  width: 90px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: #f4f0df;
+  font-size: 12px;
+}
+
+#shuffle-deck { left: 0; }
+#receiving-deck { right: 0; }
+.shuffle-stacks:has(#receiving-deck[hidden]) #shuffle-deck { left: 85px; }
+
+.deck-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 68px;
+  height: 96px;
+  margin: 0 auto 14px;
+  background: repeating-linear-gradient(45deg, #2c5262, #2c5262 4px, #315d6b 4px, #315d6b 8px);
+  border: 3px solid #e4dfc8;
+  border-radius: 7px;
+  box-shadow: 3px 3px 0 #b6baa9, 6px 6px 0 #e4dfc8, 8px 9px 8px #102d2a88;
+  font: 28px Georgia, serif;
+}
+
+#shuffle-deck:hover:enabled { background: transparent; }
+#shuffle-deck:hover:enabled .deck-back { border-color: var(--gold); }
+#shuffle-deck:disabled { opacity: 1; }
+
+#shuffle-flight {
+  position: absolute;
+  left: 11px;
+  top: 0;
+  pointer-events: none;
+}
+
+.card.shuffle-packet {
+  width: 68px;
+  height: 96px;
+  animation: move-packet 160ms ease-in-out both;
+  box-shadow: 2px 3px 0 #e4dfc8, 5px 6px 0 #b6baa9, 0 8px 12px #102d2a88;
+}
+
+.packet-count {
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  color: #fffdf5;
+  font: 11px system-ui, sans-serif;
+}
+
+@keyframes move-packet {
+  from { transform: translate(0, 0) rotate(-5deg); }
+  50% { transform: translate(85px, -25px) rotate(6deg); }
+  to { transform: translate(170px, 0) rotate(0); }
+}
+
+#shuffle-note, .preview-note { font-size: 12px; line-height: 1.5; }
+.preview-note { margin: 24px 0 10px; color: #dae3d8; }
+
+.deck-preview {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(16, minmax(0, 1fr));
+  gap: 12px 6px;
+  padding: 0;
+  margin: 0;
+}
+
+.deck-preview li { min-width: 0; font: 10px system-ui, sans-serif; }
+.deck-preview li > span { display: block; margin-bottom: 4px; }
+.deck-preview .card { width: 100%; height: 76px; padding: 4px; }
+.deck-preview .card .rank { font-size: 14px; }
+.deck-preview .card .suit { font-size: 23px; }
+.deck-preview .card .value { font-size: 8px; }
+
+@media (max-width: 760px) {
+  .deck-preview { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 10px 4px; }
+  .deck-preview .card { height: 68px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.shuffle-packet { animation: none; }
+}
+
 .trick {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  align-items: start;
-  min-height: 130px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-areas:
+    "west north east"
+    "west south east";
+  gap: 12px;
+  align-items: center;
+  max-width: 300px;
+  margin: auto;
 }
 
 .trick-slot {
@@ -248,7 +361,7 @@ h1 span {
 }
 
 .empty-card {
-  height: 93px;
+  height: 89px;
   max-width: 74px;
   margin: auto;
   border: 1px dashed #ffffff38;
@@ -312,7 +425,8 @@ h1 span {
 
 .card.winner {
   border-color: var(--gold);
-  box-shadow: 0 0 0 2px #edc56b75;
+  background: #fff8dd;
+  box-shadow: 0 0 0 2px var(--gold), 0 0 16px #edc56b75;
 }
 
 .card.back {
@@ -487,8 +601,8 @@ footer span {
     padding: 28px;
   }
 
-  .trick {
-    min-height: 142px;
+  .empty-card {
+    height: 96px;
   }
 }
 
@@ -581,12 +695,6 @@ footer span {
     margin-left: 3px;
   }
 
-  .trick {
-    max-width: 340px;
-    margin: auto;
-    min-height: 105px;
-  }
-
   .trick .card {
     height: 80px;
   }
@@ -642,5 +750,36 @@ footer span {
 @media (prefers-reduced-motion: no-preference) {
   .card {
     transition: transform .15s, box-shadow .15s;
+  }
+}
+
+#trick-collection {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.table.collecting .trick .card { visibility: hidden; }
+
+.card.collection-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin: 0;
+  transform-origin: center;
+  animation: collect-trick var(--collect-duration) ease-in-out both;
+}
+
+@keyframes collect-trick {
+  0%, 20% { transform: translate(var(--from-x), var(--from-y)) scale(1); }
+  48%, 60% { transform: translate(var(--stack-x), var(--stack-y)) scale(.7); }
+  92%, 100% { transform: translate(var(--target-x), var(--target-y)) scale(.4); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.collection-card {
+    animation: none;
+    transform: translate(var(--target-x), var(--target-y)) scale(.4);
   }
 }

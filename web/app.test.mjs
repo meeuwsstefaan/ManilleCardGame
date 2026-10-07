@@ -1,49 +1,154 @@
 // Exercise the real app handlers with a small DOM and controlled timers.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {NAMES, makeDeck, winningPlay} from './engine.mjs';
 
 class Element {
   constructor() {
     this.children = []; this.handlers = {}; this.disabled = false; this.hidden = false;
     this.checked = false; this.value = ''; this.textContent = ''; this.className = '';
-    this.classList = {toggle() {}};
+    this.classList = {toggle() {}}; this.attributes = {};
+    this.style = {properties: {}, setProperty(name, value) { this.properties[name] = value; }};
+    this.rect = {left: 0, top: 0, width: 68, height: 96};
   }
   append(...items) { this.children.push(...items); }
   prepend(item) { this.children.unshift(item); item.parent = this; }
   replaceChildren(...items) { this.children = items; }
   get lastChild() { return this.children.at(-1); }
   remove() { this.parent.children.splice(this.parent.children.indexOf(this), 1); }
-  setAttribute() {}
+  setAttribute(name, value) { this.attributes[name] = value; }
+  getBoundingClientRect() { return this.rect; }
   addEventListener(event, handler) { this.handlers[event] = handler; }
   click() { if (!this.disabled) this.handlers.click?.(); }
 }
 
-test('app pauses for joining, counts deals once, stops the match, and resets', async () => {
-  const saved = {document: globalThis.document, setTimeout, clearTimeout, confirm: globalThis.confirm, random: Math.random};
+test('app shuffles and deals the preview, pauses for joining, scores once, and resets', async () => {
+  const saved = {document: globalThis.document, setTimeout, clearTimeout, confirm: globalThis.confirm, random: Math.random, localStorage: globalThis.localStorage};
+  const stored = new Map();
+  globalThis.localStorage = {getItem: key => stored.get(key) ?? null, setItem: (key, value) => stored.set(key, value)};
   const elements = new Map();
   const get = id => {
     if (!elements.has(id)) elements.set(id, new Element());
     return elements.get(id);
   };
-  let seed = 42, pending = null;
+  let seed = 42, pending = null, pendingId = null, timerId = 0;
   Math.random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 2 ** 32; };
   globalThis.document = {getElementById: get, createElement: () => new Element()};
-  globalThis.setTimeout = handler => { pending = handler; return 1; };
-  globalThis.clearTimeout = () => { pending = null; };
+  globalThis.setTimeout = handler => { pending = handler; pendingId = ++timerId; return pendingId; };
+  globalThis.clearTimeout = id => { if (id === pendingId) pending = null; };
   globalThis.confirm = () => true;
   get('show-hands').checked = true; get('speed').value = '200';
+  for (let player = 0; player < 4; player++) {
+    get(`seat-${player}`).rect = {left: player * 150, top: player * 100, width: 200, height: 100};
+  }
   const hand = () => get('seat-0').children[1].children;
   const score = () => [Number(get('our-score').textContent), Number(get('their-score').textContent)];
+  const faceName = face => face.attributes['aria-label'].split(',')[0];
+  const preview = () => get('deck-preview').children.map(item => faceName(item.children[1]));
+  function shuffleAndDeal() {
+    assert.equal(get('deck-preview').children.length, 32);
+    assert.equal(new Set(preview()).size, 32);
+    assert.equal(get('step').disabled, true); assert.equal(get('auto').disabled, true);
+    assert.equal(pending, null);
+    for (let repeat = 0; repeat < 2; repeat++) {
+      const before = preview();
+      get('shuffle-deck').click();
+      assert.equal(get('deal-cards').disabled, true);
+      assert.equal(get('shuffle-deck').disabled, true);
+      assert.equal(get('new-game').disabled, true);
+      const seedAfterClick = seed;
+      get('shuffle-deck').click(); get('deal-cards').click(); get('new-game').click();
+      assert.equal(seed, seedAfterClick);
+      assert.deepEqual(preview(), before);
+      let ticks = 0;
+      while (pending) {
+        assert.deepEqual(preview(), before); // Only publish the order on completion.
+        assert.ok(++ticks <= 32);
+        const callback = pending; pending = null; callback();
+      }
+      assert.equal(get('deal-cards').disabled, false);
+      assert.notDeepEqual(preview(), before);
+      assert.match(get('shuffle-note').textContent, new RegExp(`^${repeat + 1} shuffle`));
+      assert.match(get('deck-order-note').textContent, /^Shuffled order/);
+    }
+    const order = preview();
+    const dealerName = get('dealer').textContent.slice('Dealer: '.length);
+    const dealer = NAMES.indexOf(dealerName);
+    const expectedHands = [[], [], [], []]; let cursor = 0;
+    for (const packet of [3, 2, 3]) for (let offset = 1; offset <= 4; offset++) {
+      expectedHands[(dealer + offset) % 4].push(...order.slice(cursor, cursor + packet)); cursor += packet;
+    }
+    const priorScore = score();
+    get('deal-cards').click();
+    assert.equal(get('shuffle-panel').hidden, true);
+    assert.deepEqual(score(), priorScore);
+    for (let player = 0; player < 4; player++) {
+      assert.deepEqual(new Set(get(`seat-${player}`).children[1].children.map(faceName)), new Set(expectedHands[player]));
+    }
+  }
   try {
     await import('./app.mjs');
     assert.equal(get('suit-buttons').children.length, 5);
+    assert.equal(get('shuffle-panel').hidden, false);
+    assert.deepEqual(preview(), makeDeck().map(card => `${card.rank} of ${card.suit}`));
+    shuffleAndDeal();
+    while (!get('redeal').hidden) { get('redeal').click(); shuffleAndDeal(); }
     assert.equal(get('trump-picker').hidden, false);
     get('suit-buttons').children[4].click(); // Human declares Null.
     assert.match(get('trump').textContent, /Null.*×2/);
     assert.equal(get('join-picker').hidden, true);
     assert.deepEqual(score(), [0, 0]);
     let joined = 0, passed = 0, completed = 0, observedJoin = false;
+    const observedTrickSizes = new Set();
+    let collected = [], collections = 0, finalCollections = 0;
     for (let actions = 0; actions < 20000; actions++) {
+      if (!get('shuffle-panel').hidden) {
+        if (collected.length === 32) assert.deepEqual(preview(), collected);
+        collected = []; shuffleAndDeal(); continue;
+      }
+      const slots = get('trick').children;
+      assert.deepEqual(slots.map(slot => slot.className), ['trick-slot south', 'trick-slot west', 'trick-slot north', 'trick-slot east']);
+      const trick = slots.flatMap((slot, player) => {
+        const face = slot.children[1];
+        const match = face.attributes['aria-label']?.match(/^(.+) of (\w+),/);
+        return match ? [[player, {rank: match[1], suit: match[2]}]] : [];
+      });
+      // Restore chronological order using the newest play messages.
+      const order = get('history').children.map(item => NAMES.find(name => item.textContent.startsWith(`${name} play `) || item.textContent.startsWith(`${name} plays `))).filter(Boolean).slice(0, trick.length).reverse();
+      trick.sort((a, b) => order.indexOf(NAMES[a[0]]) - order.indexOf(NAMES[b[0]]));
+      const highlighted = slots.flatMap((slot, player) => slot.children[1].className.split(' ').includes('winner') ? [player] : []);
+      if (trick.length) {
+        const trumpText = String(get('trump').textContent);
+        const trump = ['Clubs', 'Diamonds', 'Hearts', 'Spades', 'Null'].find(suit => trumpText.includes(suit));
+        assert.deepEqual(highlighted, [winningPlay(trick, trump)[0]]);
+        assert.match(slots[highlighted[0]].children[1].attributes['aria-label'], /currently winning the trick/);
+        observedTrickSizes.add(trick.length);
+        if (trick.length === 4 && collected.length === (Number(String(get('trick-label').textContent).match(/\d+/)[0]) - 1) * 4) {
+          collected.push(...trick.map(([, card]) => `${card.rank} of ${card.suit}`));
+        }
+      } else assert.deepEqual(highlighted, []);
+      if (get('trick-collection').children.length) {
+        const layer = get('trick-collection');
+        assert.equal(layer.children.length, 4);
+        assert.equal(layer.attributes['data-winner'], highlighted[0]);
+        assert.equal(layer.children.at(-1).className.includes('winner'), true);
+        const target = get(`seat-${highlighted[0]}`).rect;
+        assert.equal(layer.children[0].style.properties['--target-x'], `${target.left + target.width / 2 - 34}px`);
+        assert.equal(layer.children[0].style.properties['--target-y'], `${target.top + target.height / 2 - 48}px`);
+        const before = score(), label = get('trick-label').textContent;
+        for (const id of ['next-deal', 'step', 'auto', 'new-game']) {
+          assert.equal(get(id).disabled, true); get(id).click();
+        }
+        assert.equal(get('trick-label').textContent, label); assert.deepEqual(score(), before);
+        assert.ok(pending, 'collection must finish even while computers are paused');
+        const callback = pending; pending = null; callback();
+        assert.equal(layer.children.length, 0);
+        assert.deepEqual(score(), before);
+        assert.ok(get('trick').children.every(slot => slot.children[1].className === 'empty-card'));
+        collections++;
+        if (String(label).includes('8 OF 8')) finalCollections++;
+        continue;
+      }
       if (!get('redeal').hidden) { get('redeal').click(); continue; }
       if (!get('join-picker').hidden) {
         observedJoin = true;
@@ -75,7 +180,13 @@ test('app pauses for joining, counts deals once, stops the match, and resets', a
         const before = score();
         assert.match(get('history').children[0].textContent, new RegExp(`counted points \\+${earned[0]} / \\+${earned[1]}`));
         get('show-hands').handlers.change(); assert.deepEqual(score(), before);
+        assert.equal(collected.length, 32);
         get('next-deal').click(); assert.deepEqual(score(), before);
+        assert.deepEqual(preview(), collected);
+        assert.notDeepEqual(preview(), makeDeck().map(card => `${card.rank} of ${card.suit}`));
+        assert.match(get('deck-order-note').textContent, /^Collected order from Deal/);
+        get('show-hands').handlers.change();
+        assert.deepEqual(preview(), collected, 'redrawing must keep the collected order');
         continue;
       }
       if (!get('trump-picker').hidden) { get('suit-buttons').children[4].click(); continue; }
@@ -84,14 +195,35 @@ test('app pauses for joining, counts deals once, stops the match, and resets', a
       else get('step').click();
     }
     assert.match(get('status').textContent, /^Match complete:/);
+    assert.deepEqual([...observedTrickSizes].sort(), [1, 2, 3, 4]);
+    assert.equal(collections, (completed + 1) * 8);
+    assert.equal(finalCollections, completed + 1);
     assert.ok(completed > 1); assert.ok(observedJoin); assert.equal(joined, 1); assert.ok(passed > 0);
     get('new-game').click();
     assert.deepEqual(score(), [0, 0]);
     assert.equal(get('deal-number').textContent, 'Deal 1');
     assert.equal(get('join-picker').hidden, true);
-    assert.equal(get('trump-picker').hidden, false);
+    assert.equal(get('shuffle-panel').hidden, false);
+    assert.deepEqual(preview(), collected, 'New game must retain the last collected deck');
+    assert.match(get('deck-order-note').textContent, /^Collected order/);
+    const persisted = JSON.parse(stored.get('manille.lastCollectedDeck.v1'));
+    assert.deepEqual(persisted.map(card => `${card.rank} of ${card.suit}`), collected);
+
+    // A fresh page module has no previous deal in memory: recover the saved deck.
+    elements.clear();
+    get('show-hands').checked = true; get('speed').value = '200';
+    await import('./app.mjs?reload-test');
+    assert.deepEqual(preview(), collected, 'page refresh must restore collection order');
+    assert.deepEqual(score(), [0, 0]);
+
+    // Reject incomplete or corrupt saved decks rather than dropping cards.
+    stored.set('manille.lastCollectedDeck.v1', JSON.stringify(persisted.slice(1)));
+    elements.clear();
+    await import('./app.mjs?invalid-storage-test');
+    assert.deepEqual(preview(), makeDeck().map(card => `${card.rank} of ${card.suit}`));
   } finally {
     globalThis.document = saved.document; globalThis.setTimeout = saved.setTimeout;
     globalThis.clearTimeout = saved.clearTimeout; globalThis.confirm = saved.confirm; Math.random = saved.random;
+    globalThis.localStorage = saved.localStorage;
   }
 });

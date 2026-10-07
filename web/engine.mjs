@@ -5,11 +5,27 @@ export const TRUMP_CHOICES = [...SUITS, NULL_TRUMP];
 export const MATCH_TARGET = 101;
 export const RANKS = ['7', '8', '9', 'Jack', 'Queen', 'King', 'Ace', '10'];
 export const POINTS = [0, 0, 0, 1, 2, 3, 4, 5];
-export const NAMES = ['You', 'Computer 1', 'Your teammate', 'Computer 3'];
+export const NAMES = ['You', 'Florian', 'Your teammate', 'Odette'];
 export const strength = card => RANKS.indexOf(card.rank);
 export const points = card => POINTS[strength(card)];
 export const cardId = card => `${card.suit}-${card.rank}`;
 export const makeDeck = () => SUITS.flatMap(suit => RANKS.map(rank => ({suit, rank})));
+
+export function hinduShuffle(deck, random = Math.random) {
+  if (deck.length < 2) return deck.length ? [deck.length] : [];
+  const randint = (low, high) => low + Math.floor(random() * (high - low + 1));
+  const remainder = Math.min(randint(3, 6), deck.length - 1);
+  let received = [], cursor = 0;
+  const packets = [];
+  while (deck.length - cursor > remainder) {
+    const size = randint(1, Math.min(5, deck.length - cursor - remainder));
+    received = [...deck.slice(cursor, cursor + size), ...received];
+    packets.push(size);
+    cursor += size;
+  }
+  deck.splice(0, deck.length, ...deck.slice(cursor), ...received);
+  return [...packets, remainder];
+}
 
 const compare = (a, b) => {
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i];
@@ -143,13 +159,17 @@ export function ruleHint(hand, trick, trump) {
 }
 
 export class Deal {
-  constructor(dealer = 0, random = Math.random) {
+  constructor(dealer = 0, random = Math.random, suppliedDeck = null) {
     if (!Number.isInteger(dealer) || dealer < 0 || dealer > 3) throw new Error('Invalid dealer.');
 
     this.dealer = dealer;
-    const deck = makeDeck();
+    const deck = suppliedDeck === null ? makeDeck() : [...suppliedDeck];
+    const expected = new Set(makeDeck().map(cardId));
+    if (deck.length !== 32 || new Set(deck.map(cardId)).size !== 32 || deck.some(card => !expected.has(cardId(card)))) {
+      throw new Error('A deal requires all 32 unique Manille cards.');
+    }
 
-    for (let i = deck.length - 1; i > 0; i--) {
+    for (let i = suppliedDeck === null ? deck.length - 1 : 0; i > 0; i--) {
       const j = Math.floor(random() * (i + 1));
       [deck[i], deck[j]] = [deck[j], deck[i]];
     }
@@ -171,6 +191,7 @@ export class Deal {
     this.leader = (dealer + 1) % 4;
     this.trick = [];
     this.captured = [[], []];
+    this.gameDeck = [];
     this.scores = [0, 0];
     this.trickNumber = 1;
     this.finished = false;
@@ -212,10 +233,11 @@ export class Deal {
     if (this.trick.length === 4) {
       const team = winningPlay(this.trick, this.trump)[0] % 2;
       this.captured[team].push(...this.trick.map(([, played]) => played));
+      this.gameDeck.push(...this.trick.map(([, played]) => played));
       this.scores[team] += this.trick.reduce((sum, [, played]) => sum + points(played), 0);
       this.finished = this.hands.every(hand => !hand.length);
 
-      if (this.finished && (this.scores[0] + this.scores[1] !== 60 || this.captured.flat().length !== 32)) {
+      if (this.finished && (this.scores[0] + this.scores[1] !== 60 || this.captured.flat().length !== 32 || new Set(this.gameDeck.map(cardId)).size !== 32)) {
         throw new Error('Cards or points were lost.');
       }
     }

@@ -8,7 +8,7 @@ import unittest
 
 from manille import (
     BoardDeal, TRUMP_CHOICES, choose_computer_card, choose_computer_join,
-    choose_computer_trump, legal_cards, match_points, winning_play,
+    choose_computer_trump, hindu_shuffle, legal_cards, make_deck, match_points, winning_play,
 )
 
 
@@ -18,6 +18,41 @@ def card_json(card):
 
 @unittest.skipUnless(shutil.which("node"), "Node.js is required for browser parity checks")
 class BrowserParityTests(unittest.TestCase):
+    def test_browser_hindu_shuffle_matches_desktop_packets_and_order(self):
+        class DrawRandom:
+            def __init__(self, draws):
+                self.draws = iter(draws)
+
+            def randint(self, low, high):
+                return low + int(next(self.draws) * (high - low + 1))
+
+        rng = random.Random(20261007)
+        cases = []
+        for _ in range(100):
+            draws = [rng.random() for _ in range(64)]
+            deck = make_deck()
+            rng.shuffle(deck)
+            original = [card_json(card) for card in deck]
+            packets = hindu_shuffle(deck, DrawRandom(draws))
+            cases.append({"draws": draws, "deck": original, "packets": packets,
+                          "result": [card_json(card) for card in deck]})
+        script = """
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {hinduShuffle} from './web/engine.mjs';
+for (const c of JSON.parse(fs.readFileSync(0, 'utf8'))) {
+  let index = 0;
+  assert.deepEqual(hinduShuffle(c.deck, () => c.draws[index++]), c.packets);
+  assert.deepEqual(c.deck, c.result);
+}
+"""
+        result = subprocess.run(
+            [shutil.which("node"), "--input-type=module", "-e", script],
+            input=json.dumps(cases), text=True, capture_output=True,
+            cwd=Path(__file__).resolve().parent, timeout=30,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_browser_matches_desktop_across_complete_deals(self):
         cases = []
         rng = random.Random(20261007)

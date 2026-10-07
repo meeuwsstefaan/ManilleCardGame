@@ -98,8 +98,23 @@ choices, and scoring to 101. The scoreboard shows counted match points;
 raw deal points appear separately. Null or joined trump doubles only the
 points above 30, once. Joining waits for your choice before any cards are played.
 An initial zero-point hand requires a redeal with the same dealer and scores.
-Reloading clears the match. Unlike the desktop, the browser automatically
-shuffles each deal; it does not provide the desktop's manual shuffle animation.
+Reloading clears the match scores, but the last completed deal's collected deck
+is saved in browser storage for the same address. **New game** also retains that
+collected deck. An ordered fresh deck is used only before any collected deck is
+available. Click the deck for one animated Hindu shuffle, inspect all 32 numbered
+cards below it, then click **Deal cards**. That exact order is dealt in 3-2-3
+packets. Additional deck clicks perform additional shuffles. The preview updates
+when the animation finishes; dealing and extra shuffle clicks wait until then.
+**Next deal** brings back the deck in the order collected from completed tricks,
+with the dealer rotated and match scores retained. Zero-point redeals return to
+the same shuffle stage without changing the dealer, deal number, or scores.
+The preview labels the collected order and changes to "Shuffled order" after a
+shuffle. It renders the same deck that **Deal cards** uses. If browser storage is
+unavailable, collection order is still retained while the page remains open.
+After every completed trick, its four cards gather into a small stack and slide
+to the winning player's seat. Controls wait for collection to finish, including
+on the final trick of a deal or match. Reduced-motion settings show the stack
+at its destination without the movement.
 
 The static `web/` folder can later be served at a subdirectory such as
 `https://101net.dev/manille/`; its assets use relative URLs and need no Python
@@ -113,7 +128,8 @@ node --test web/engine.test.mjs web/app.test.mjs
 ```
 
 With Node.js available, `py -3 -m unittest test_web_parity` also compares
-3,200 browser card decisions and 610 scoring cases directly with `manille.py`.
+3,200 browser card decisions, 610 scoring cases, and 100 Hindu shuffles directly
+with `manille.py`.
 
 ## Other run modes
 
