@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <meta name="description" content="A private little table for a game of Manille.">
+  <title>Manille · The card table</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='56'%3E%E2%99%A0%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.mjs"></script>
+</head>
+<body>
+  <header class="masthead">
+    <div><p class="eyebrow">FOUR PLAYERS · TWO TEAMS · 32 CARDS</p><h1>Manille<span>the card table</span></h1></div>
+    <button id="new-game" class="quiet">New game</button>
+  </header>
+  <main>
+    <section class="scorebar" aria-label="Match scoreboard, target 101 counted points">
+      <div><span class="eyebrow">YOUR TEAM</span><strong id="our-score">0</strong><small>You + your teammate</small></div>
+      <div class="deal-meta"><span id="deal-number">Deal 1</span><strong id="trump">Choose trump</strong><small id="dealer">Dealer: You</small></div>
+      <div><span class="eyebrow">OPPONENTS</span><strong id="their-score">0</strong><small>Computers 1 + 3</small></div>
+    </section>
+    <section class="table" aria-label="Manille card table">
+      <section id="seat-2" class="seat north" aria-label="Your teammate"></section>
+      <section id="seat-1" class="seat west" aria-label="Computer 1"></section>
+      <div class="table-center">
+        <p id="trick-label" class="eyebrow">TRICK 1 OF 8</p>
+        <div id="trick" class="trick" aria-label="Current trick"></div>
+        <p id="table-message"></p>
+      </div>
+      <section id="seat-3" class="seat east" aria-label="Computer 3"></section>
+      <section id="seat-0" class="seat south" aria-label="Your hand"></section>
+    </section>
+    <section class="action-panel" aria-label="Game controls">
+      <div id="status" role="status" aria-live="polite"></div>
+      <div id="trump-picker"><span>Choose your trump:</span><div id="suit-buttons"></div></div>
+      <div id="join-picker" hidden><span>Join the opposing team's trump?</span><button id="join-trump">Join · double points</button><button id="pass-trump">Pass</button></div>
+      <button id="redeal" hidden>Zero-point hand · redeal</button>
+      <div class="controls">
+        <button id="auto" class="primary">Pause computers</button>
+        <button id="step">Step: one action</button>
+        <button id="next-deal" disabled>Next deal</button>
+        <label>Speed <select id="speed"><option value="1200">Relaxed</option><option value="650" selected>Normal</option><option value="200">Fast</option></select></label>
+        <label class="check"><input type="checkbox" id="show-hands" checked> Show all hands</label>
+      </div>
+      <p class="score-note" id="deal-score">Deal points: 0-0 / 60</p>
+      <p class="score-note">Match target: 101. Only points above 30 in a completed deal count; Null and joined trump double those points.</p>
+    </section>
+    <div class="details-grid">
+      <details open><summary>At the table <span>Decision history</span></summary><ol id="history" class="history" aria-label="Decision history"></ol></details>
+      <details><summary>How to play <span>The rules used here</span></summary>
+        <div class="rules"><p>You sit at the bottom; your teammate sits opposite. Choose trump when you deal, then click a gold-bordered card on your turn. Computer turns advance automatically; pause or step to inspect each decision.</p>
+        <p>Follow the led suit. When an opponent is winning, beat the highest card of that suit if possible, unless a non-trump lead has already been trumped. If your teammate is winning, a higher card is optional. When unable to follow, trump is mandatory against an opponent if you hold trump; with a winning teammate, you may discard instead. Overtrump when possible. Lower trumps are allowed only when forced, including when trump is led.</p>
+        <p>The dealer may choose <b>Null</b>: no suit is trump. After a suit is chosen, an opponent may <b>join trump</b> before the first card. You get the first choice when eligible; after you pass, your teammate may join. Null cannot be joined.</p>
+        <p>Rank: <b>10, A, K, Q, J, 9, 8, 7.</b> Points: <b>5, 4, 3, 2, 1, 0, 0, 0.</b> Each deal has 60 raw card points. Only the excess above 30 counts toward the match: 40–20 earns 10–0, or 20–0 with Null or joined trump. A 30–30 tie earns zero. Doubling applies once. The match ends at <b>101 or more</b> counted points.</p>
+        <p>Cards are dealt in 3–2–3 packets, starting left of the dealer. An initial zero-point hand requires a redeal with the same dealer and scores.</p>
+        <p>All hands are visible by default for inspecting play. Turn off "Show all hands" for a concealed table. Computers use their own hand, the current trick, the trump chooser, and publicly observed trumped suits. Reloading starts a fresh game.</p></div>
+      </details>
+    </div>
+  </main>
+  <footer>A little table, wherever you are. <span>Plays entirely in your browser.</span></footer>
+  <noscript>Please enable JavaScript to play Manille.</noscript>
+</body>
+</html>

@@ -80,6 +80,41 @@ Following suit is always mandatory. If you cannot follow and your partner is win
 
 If any player's initial eight-card hand has zero points, the board pauses before trump selection and shows an **Info: zero-point hand — restart deal** button. Click it to return to shuffling, then choose **Deal cards** again. The same dealer, deal number, names, and match totals are retained. This check applies only immediately after dealing. In human console mode, press Enter to acknowledge the notice and redeal; computer-only console games redeal automatically.
 
+## Play in a browser
+
+From this project folder on Windows, run:
+
+```powershell
+py -3 play_web.py
+```
+
+On macOS/Linux use `python3 play_web.py`. The launcher serves only `web/` at
+`http://127.0.0.1:8765/` and opens your browser. Stop it with Ctrl+C. Use
+`--no-browser` to open the address yourself, or `--port 8766` if the port is busy.
+
+The browser version plays entirely in JavaScript. It includes the desktop's
+current card legality, Null, opponent joining trump, computer card/trump/join
+choices, and scoring to 101. The scoreboard shows counted match points;
+raw deal points appear separately. Null or joined trump doubles only the
+points above 30, once. Joining waits for your choice before any cards are played.
+An initial zero-point hand requires a redeal with the same dealer and scores.
+Reloading clears the match. Unlike the desktop, the browser automatically
+shuffles each deal; it does not provide the desktop's manual shuffle animation.
+
+The static `web/` folder can later be served at a subdirectory such as
+`https://101net.dev/manille/`; its assets use relative URLs and need no Python
+server in production. It has not been published. The page requests no search
+indexing; an unlinked address remains accessible to anyone who knows the URL.
+
+Browser rule tests require Node.js and use no additional packages:
+
+```sh
+node --test web/engine.test.mjs web/app.test.mjs
+```
+
+With Node.js available, `py -3 -m unittest test_web_parity` also compares
+3,200 browser card decisions and 610 scoring cases directly with `manille.py`.
+
 ## Other run modes
 
 The computer that chose a trump suit prefers to lead and play legal cards of that suit. Within those legal trump cards, its usual point-value strategy still applies. Following suit and other mandatory rules take precedence, and Null strategy is unchanged. Human trump choosers receive a recommendation on the board and retain manual choice.
