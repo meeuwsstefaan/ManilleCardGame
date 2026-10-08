@@ -1,6 +1,6 @@
 import {Deal, Match, TRUMP_CHOICES, NULL_TRUMP, makeDeck, cardId, hinduShuffle, points, legalCards, winningPlay, chooseComputerCard, chooseComputerTrump, chooseComputerJoin, ruleHint} from './engine.mjs';
 import {setupHistoryPanel} from './history-panel.mjs';
-import {createI18n} from './i18n.mjs';
+import {createI18n} from './i18n.mjs?v=autoplay-1';
 import {setupAnalytics} from './analytics.mjs';
 let languageStorage;
 try { languageStorage = localStorage; } catch { /* Browser storage is optional. */ }
@@ -49,7 +49,8 @@ function cardView(card, {hidden = false, legal = false, winner = false, previous
     const rank = document.createElement('span'); rank.className = 'rank';
     i18n.compact(rank, 'rankShort', {rank: card.rank});
     const suit = document.createElement('span'); suit.className = 'suit'; suit.textContent = symbols[card.suit]; suit.setAttribute('aria-hidden', 'true');
-    const value = document.createElement('span'); value.className = 'value'; value.textContent = points(card) + ' pt';
+    const value = document.createElement('span'); value.className = 'value';
+    i18n.compact(value, 'cardPoints', {points: points(card)});
     element.append(rank, suit, value);
     i18n.aria(element, 'cardAccessible', {card, points: points(card), legal, winner, previous});
     i18n.title(element, 'cardName', {card});
@@ -58,8 +59,10 @@ function cardView(card, {hidden = false, legal = false, winner = false, previous
   return element;
 }
 
+function autoplayHand() { return $('autoplay-hand').checked; }
+
 function waitingForHuman() {
-  return shuffleStage || collecting || showingLastHand || deal.zeroPointPlayers.length > 0 || joinPending || (!deal.finished && (deal.trump === null ? deal.dealer === 0 : deal.trick.length < 4 && deal.currentPlayer === 0));
+  return shuffleStage || collecting || showingLastHand || deal.zeroPointPlayers.length > 0 || (!autoplayHand() && (joinPending || (!deal.finished && (deal.trump === null ? deal.dealer === 0 : deal.trick.length < 4 && deal.currentPlayer === 0))));
 }
 
 function renderDeckPreview() {
@@ -125,7 +128,7 @@ function render() {
     deal.hands[player].forEach(card => hand.append(cardView(card, {
       hidden: player !== 0 && !$('show-hands').checked,
       legal: choices.includes(card) && (player === 0 || $('show-hands').checked),
-      onPlay: player === 0 ? () => playHuman(card) : null,
+      onPlay: player === 0 && !autoplayHand() ? () => playHuman(card) : null,
     })));
     seat.append(title, hand);
   }
@@ -153,8 +156,8 @@ function render() {
   show('trump', deal.trump === null ? 'chooseTrumpTitle' : deal.trump === NULL_TRUMP ? 'nullTrump' : 'trumpSuit', {suit: deal.trump, joined: deal.joinedBy !== null});
   show('dealer', 'dealer', {player: deal.dealer});
   show('deal-score', 'rawScores', {ours: deal.scores[0], theirs: deal.scores[1]});
-  $('trump-picker').hidden = deal.zeroPointPlayers.length > 0 || deal.trump !== null || deal.dealer !== 0;
-  $('join-picker').hidden = !joinPending;
+  $('trump-picker').hidden = deal.zeroPointPlayers.length > 0 || deal.trump !== null || deal.dealer !== 0 || autoplayHand();
+  $('join-picker').hidden = !joinPending || autoplayHand();
   $('redeal').hidden = !deal.zeroPointPlayers.length;
   $('next-deal').disabled = collecting || !deal.finished || match.winner !== null;
   $('step').disabled = deal.finished || waitingForHuman();
@@ -165,11 +168,11 @@ function render() {
   else if (collecting) show('status', 'collecting', {player: winner});
   else if (match.winner !== null) show('status', 'matchComplete', {team: match.winner, score: match.totals[match.winner]});
   else if (deal.zeroPointPlayers.length) show('status', 'zeroHand', {players: deal.zeroPointPlayers});
-  else if (joinPending) show('status', 'joinStatus', {suit: deal.trump});
+  else if (joinPending) show('status', autoplayHand() ? 'autoplayJoin' : 'joinStatus', {suit: deal.trump});
   else if (deal.finished) show('status', 'dealComplete', {ours: deal.scores[0], theirs: deal.scores[1]});
-  else if (!deal.trump) show('status', deal.dealer === 0 ? 'humanTrump' : 'computerTrump', {player: deal.dealer, running});
+  else if (!deal.trump) show('status', deal.dealer === 0 && !autoplayHand() ? 'humanTrump' : 'computerTrump', {player: deal.dealer, running});
   else if (complete) show('status', 'trickComplete', {running});
-  else if (active === 0) show('status', 'yourTurn', {rule: ruleHint(deal.hands[0], deal.trick, deal.trump), recommend: deal.dealer === 0 && choices.some(card => card.suit === deal.trump)});
+  else if (active === 0 && !autoplayHand()) show('status', 'yourTurn', {rule: ruleHint(deal.hands[0], deal.trick, deal.trump), recommend: deal.dealer === 0 && choices.some(card => card.suit === deal.trump)});
   else show('status', 'computerTurn', {player: active, running});
 }
 
@@ -229,7 +232,7 @@ function play(card) {
   const player = deal.currentPlayer;
   const rule = ruleHint(deal.hands[player], deal.trick, deal.trump);
   deal.play(card);
-  if (player === 0) analytics.humanPlayed();
+  if (player === 0 && !autoplayHand()) analytics.humanPlayed();
   log('played', {player, card, points: points(card), rule});
 
   if (deal.trick.length === 4) {
@@ -245,7 +248,7 @@ function play(card) {
 }
 
 function playHuman(card) {
-  if (shuffleStage || collecting || showingLastHand || joinPending || deal.trump === null || deal.finished || deal.trick.length === 4 || deal.currentPlayer !== 0) return;
+  if (autoplayHand() || shuffleStage || collecting || showingLastHand || joinPending || deal.trump === null || deal.finished || deal.trick.length === 4 || deal.currentPlayer !== 0) return;
   play(card); afterAction();
 }
 
@@ -253,7 +256,14 @@ function advance() {
   clearTimer();
   if (shuffleStage || deal.finished || waitingForHuman()) return;
 
-  if (!deal.trump) {
+  if (joinPending) {
+    if (chooseComputerJoin(deal.hands[0], deal.trump)) {
+      deal.joinTrump(0); log('joined', {player: 0, suit: deal.trump});
+    } else {
+      log('passed', {suit: deal.trump}); considerComputerJoins();
+    }
+    joinPending = false;
+  } else if (!deal.trump) {
     deal.chooseTrump(chooseComputerTrump(deal.hands[deal.dealer]));
     log('trumpChosen', {player: deal.dealer, suit: deal.trump});
     offerJoin();
@@ -331,7 +341,7 @@ TRUMP_CHOICES.forEach(suit => {
   const button = document.createElement('button');
   i18n.label(button, suit === NULL_TRUMP ? 'nullButton' : 'trumpSuit', {suit});
   button.addEventListener('click', () => {
-    if (shuffleStage || deal.trump || deal.dealer !== 0) return;
+    if (autoplayHand() || shuffleStage || showingLastHand || deal.trump || deal.dealer !== 0) return;
     if (deal.zeroPointPlayers.length) return;
     deal.chooseTrump(suit); log('humanChose', {suit}); offerJoin(); afterAction();
   });
@@ -339,12 +349,12 @@ TRUMP_CHOICES.forEach(suit => {
 });
 
 $('join-trump').addEventListener('click', () => {
-  if (!joinPending) return;
+  if (autoplayHand() || showingLastHand || !joinPending) return;
   deal.joinTrump(0); joinPending = false;
   log('joined', {player: 0, suit: deal.trump}); afterAction();
 });
 $('pass-trump').addEventListener('click', () => {
-  if (!joinPending) return;
+  if (autoplayHand() || showingLastHand || !joinPending) return;
   log('passed', {suit: deal.trump}); considerComputerJoins(); joinPending = false; afterAction();
 });
 $('redeal').addEventListener('click', () => {
@@ -365,6 +375,11 @@ $('auto').addEventListener('click', () => { if (collecting || shuffleStage || sh
 $('step').addEventListener('click', () => { running = false; advance(); });
 $('speed').addEventListener('change', schedule);
 $('show-hands').addEventListener('change', render);
+// Do not restart animations or alter Pause when control changes hands.
+$('autoplay-hand').checked = false;
+$('autoplay-hand').addEventListener('change', () => {
+  clearTimer(); render(); schedule();
+});
 
 $('next-deal').addEventListener('click', () => {
   if (shuffleStage || collecting || !deal.finished || match.winner !== null) return;

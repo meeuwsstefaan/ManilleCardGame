@@ -91,17 +91,18 @@ If any player's initial eight-card hand has zero points, the board pauses before
 ## Play in a browser
 
 Use the **Taal / Language** selector at the top to choose **Nederlands**,
-**English**, **Français**, or **Nederlands + English** (the default). Bilingual controls show
+**English**, **Français**, **简体中文** (Simplified Chinese), or **Nederlands + English** (the default). Bilingual controls show
 Dutch first and English underneath. The browser remembers this choice when
 storage is available. Switching language updates controls without restarting
 the deal or changing its timers, cards, scores, history, or floating-panel position.
 Browser translation is implemented: controls, card names,
 live messages, rule explanations, decision history and detailed rules support
-all four language modes. Existing history entries translate immediately when
+all five language modes. Existing history entries translate immediately when
 you change language. Cards use B/V/H/A in Dutch, J/Q/K/A in English and compact
 bilingual ranks such as B/J. French uses V/D/R/A, with translated card names,
 rules, live messages, and history in `web/locales/fr.mjs`.
-Full card names appear in tooltips and accessible labels.
+Simplified Chinese uses J/Q/K/A, Chinese suit names, and `web/locales/zh-Hans.mjs`
+for controls, rules, history and analytics. Full card names appear in tooltips and accessible labels.
 The internal English suit/rank identifiers and saved deck format stay the same.
 Stage Three adds translation regression checks and small-screen polish. The deck
 preview uses four columns on screens up to 480 pixels wide so bilingual ranks
@@ -167,7 +168,7 @@ When your teammate is currently winning the trick, computers play the highest-va
 ## Public browser analytics
 
 The **Analytics** button opens and closes a table below the game controls. It is
-public, hidden initially, and translated in Dutch, English, French and bilingual
+public, hidden initially, and translated in Dutch, English, French, Simplified Chinese and bilingual
 mode. Opening it does not pause, restart or change the game. **Refresh** fetches
 the current figures; there is no polling.
 
@@ -365,3 +366,7 @@ py -3 -m unittest test_manille test_board_ui
 ```
 
 On macOS/Linux, replace `py -3` with `python3`. Board tests open temporary windows and are skipped if Tkinter or a graphical display is unavailable.
+
+### Autoplay your hand
+
+In the browser, enable **Autoplay my hand** to let the existing computer strategy choose trump, decide whether to join, and play for your seat. It starts off on every page load. Uncheck it to take back the next decision. Pause, Step, Speed, and last-hand review apply to your automated seat too. Shuffling, dealing, zero-point redeals, and the next deal remain manual. Showing all hands does not give the strategy extra information. Automatically played cards do not count as a visitor manually playing their first card in analytics.

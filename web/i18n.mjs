@@ -1,10 +1,12 @@
-import en from './locales/en.mjs';
-import nl from './locales/nl.mjs';
-import fr from './locales/fr.mjs';
+// Version the complete translation import chain so cached modules stay in sync.
+import en from './locales/en.mjs?v=autoplay-1';
+import nl from './locales/nl.mjs?v=autoplay-1';
+import fr from './locales/fr.mjs?v=autoplay-1';
+import zhHans from './locales/zh-Hans.mjs?v=autoplay-1';
 
 export const LANGUAGE_STORAGE_KEY = 'manille.language';
-export const LANGUAGES = ['nl', 'en', 'fr', 'both'];
-const dictionaries = {en, nl, fr};
+export const LANGUAGES = ['nl', 'en', 'fr', 'zh-Hans', 'both'];
+const dictionaries = {en, nl, fr, 'zh-Hans': zhHans};
 
 export function formatMessage(key, params = {}, language = 'en') {
   const dictionary = dictionaries[language] || en;

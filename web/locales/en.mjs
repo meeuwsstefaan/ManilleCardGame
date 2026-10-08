@@ -2,6 +2,8 @@ const names = ["You","Florian","Your teammate","Odette"];
 const pointCount = count => count + (count === 1 ? ' point' : ' points');
 const symbols = {Clubs:'♣', Diamonds:'♦', Hearts:'♥', Spades:'♠'};
 export default {
+  autoplayHand: "Autoplay my hand", autoplayJoin: "The computer is deciding whether to join for you.",
+  cardPoints: p => p.points + ' pt',
   analytics: 'Analytics', analyticsRefresh: 'Refresh', analyticsMetric: 'Measurement', analyticsTotal: 'Total',
   analyticsWindow: 'Last 14 days, including today. Public aggregate figures.',
   analyticsPreview: 'Local preview — test data only. These figures are not from the public website.',

@@ -84,6 +84,15 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
     assert.deepEqual(get('trick-collection').children, before.faces);
     assert.deepEqual(get('trick').children, before.trick);
     assert.equal(document.documentElement.lang, 'fr');
+    get('language').handlers.change({target: {value: 'zh-Hans'}});
+    assert.equal(document.documentElement.lang, 'zh-Hans');
+    assert.notEqual(get('status').textContent, before.status);
+    assert.notEqual(get('history').children[0].textContent, before.texts[0]);
+    assert.equal(pending, before.timer);
+    assert.deepEqual(score(), before.scores);
+    assert.deepEqual(get('history').children, before.history);
+    assert.deepEqual(get('trick-collection').children, before.faces);
+    assert.deepEqual(get('trick').children, before.trick);
     get('language').handlers.change({target: {value: 'both'}});
     assert.equal(get('status').children[1].lang, 'en');
     get('language').handlers.change({target: {value: 'en'}});
@@ -141,7 +150,7 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
       const seedAfterClick = seed;
       const animation = pending;
       const historyBeforeLanguage = [...get('history').children];
-      for (const language of ['nl', 'fr', 'both', 'en']) {
+      for (const language of ['nl', 'fr', 'zh-Hans', 'both', 'en']) {
         get('language').handlers.change({target: {value: language}});
         assert.equal(pending, animation, 'language changes preserve the shuffle timer');
         assert.deepEqual(get('deck-preview').children.map(item => {
@@ -199,7 +208,7 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
     // Concealed hands must stay concealed, including labels and tooltips.
     get('show-hands').checked = false;
     get('show-hands').handlers.change();
-    for (const language of ['nl', 'fr', 'both', 'en']) {
+    for (const language of ['nl', 'fr', 'zh-Hans', 'both', 'en']) {
       get('language').handlers.change({target: {value: language}});
       for (const player of [1, 2, 3]) for (const card of get(`seat-${player}`).children[1].children) {
         assert.equal(card.getAttribute('data-i18n-aria'), 'faceDown');
@@ -348,6 +357,66 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
     await import('./app.mjs?reload-test');
     assert.deepEqual(preview(), collected, 'page refresh must restore collection order');
     assert.deepEqual(score(), [0, 0]);
+
+    // Exercise autoplay through a whole match with the real scheduler and AI.
+    assert.equal(get('autoplay-hand').checked, false);
+    const toggleAutoplay = value => {
+      get('autoplay-hand').checked = value;
+      get('autoplay-hand').handlers.change();
+    };
+    toggleAutoplay(true);
+    assert.equal(pending, null, 'autoplay leaves dealing manual');
+    let autoDeals = 0, autoJoins = 0, autoCards = 0, autoTrump = 0;
+    for (let action = 0; action < 20000; action++) {
+      if (!get('shuffle-panel').hidden) {
+        shuffleAndDeal();
+        continue;
+      }
+      if (!get('redeal').hidden) { get('redeal').click(); continue; }
+      if (get('trick-collection').children.length) {
+        const animation = pending;
+        toggleAutoplay(false); toggleAutoplay(true);
+        assert.equal(pending, animation, 'toggle preserves collection animation');
+        const callback = pending; pending = null; callback();
+        continue;
+      }
+      if (String(get('status').textContent).startsWith('Match complete:')) break;
+      if (!get('next-deal').disabled) {
+        autoDeals++;
+        assert.equal(pending, null, 'next deal stays manual');
+        get('next-deal').click(); continue;
+      }
+      // Pause and hand control back before each decision, then restore autoplay.
+      if (get('auto').textContent === 'Pause computers') get('auto').click();
+      assert.equal(pending, null);
+      toggleAutoplay(false);
+      if (!get('trump-picker').hidden) {
+        autoTrump++;
+        assert.equal(get('step').disabled, true);
+      } else if (!get('join-picker').hidden) {
+        autoJoins++;
+        assert.equal(get('step').disabled, true);
+      } else if (hand().some(card => !card.disabled)) autoCards++;
+      toggleAutoplay(true);
+      assert.equal(pending, null, 'autoplay respects Pause');
+      assert.equal(get('trump-picker').hidden, true);
+      assert.equal(get('join-picker').hidden, true);
+      assert.ok(hand().every(card => !card.handlers.click), 'autoplay cards cannot be clicked');
+      assert.equal(get('step').disabled, false);
+      if (action % 2) {
+        get('step').click();
+      } else {
+        get('auto').click();
+        assert.ok(pending, 'Resume schedules autoplay');
+        const callback = pending; pending = null; callback();
+      }
+    }
+    assert.match(get('status').textContent, /^Match complete:/);
+    assert.ok(autoDeals > 0);
+    assert.ok(autoTrump > 0, 'computer chose trump for seat zero');
+    assert.ok(autoJoins > 0, 'computer handled joining for seat zero');
+    assert.ok(autoCards >= 8, 'computer played seat zero cards');
+    assert.equal(pending, null);
 
     // Reject incomplete or corrupt saved decks rather than dropping cards.
     stored.set('manille.lastCollectedDeck.v1', JSON.stringify(persisted.slice(1)));

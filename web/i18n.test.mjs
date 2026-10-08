@@ -5,6 +5,7 @@ import {createI18n, formatMessage, LANGUAGE_STORAGE_KEY} from './i18n.mjs';
 import en from './locales/en.mjs';
 import nl from './locales/nl.mjs';
 import fr from './locales/fr.mjs';
+import zhHans from './locales/zh-Hans.mjs';
 import {setupHistoryPanel} from './history-panel.mjs';
 import {makeDeck, points} from './engine.mjs';
 
@@ -29,14 +30,43 @@ function fixture() {
   return {document, storage, values};
 }
 
-test('all static markup labels and locale keys have all three translations', () => {
+test('all static markup labels and locale keys have all four translations', () => {
   assert.deepEqual(Object.keys(en).sort(), Object.keys(nl).sort());
   assert.deepEqual(Object.keys(en).sort(), Object.keys(fr).sort());
+  assert.deepEqual(Object.keys(en).sort(), Object.keys(zhHans).sort());
   const html = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
   for (const [, key] of html.matchAll(/data-i18n(?:-aria)?="([^"]+)"/g)) {
-    assert.ok(en[key] && nl[key] && fr[key], key);
+    assert.ok(en[key] && nl[key] && fr[key] && zhHans[key], key);
   }
   assert.match(html, /<option value="fr" lang="fr">Français<\/option>/);
+  assert.match(html, /<option value="zh-Hans" lang="zh-Hans">简体中文<\/option>/);
+});
+
+test('Simplified Chinese translates controls, nested messages, cards and analytics and persists', () => {
+  const {document, storage, values} = fixture();
+  const button = document.getElementById('deal-cards'); button.setAttribute('data-i18n', 'dealCards');
+  const i18n = createI18n(document, storage);
+  document.getElementById('language').handlers.change({target: {value: 'zh-Hans'}});
+  assert.equal(button.textContent, '发牌');
+  assert.equal(button.getAttribute('lang'), 'zh-Hans');
+  assert.equal(document.documentElement.lang, 'zh-Hans');
+  assert.equal(document.title, 'Manille · 牌桌');
+  assert.equal(values.get(LANGUAGE_STORAGE_KEY), 'zh-Hans');
+  assert.equal(createI18n(document, storage).language, 'zh-Hans');
+  assert.equal(i18n.text('analytics'), '访问统计');
+  const cardValue = document.getElementById('card-value');
+  i18n.compact(cardValue, 'cardPoints', {points:3});
+  assert.equal(cardValue.textContent, '3分');
+  i18n.setLanguage('en'); assert.equal(cardValue.textContent, '3 pt');
+  i18n.setLanguage('zh-Hans'); assert.equal(cardValue.textContent, '3分');
+  assert.equal(i18n.text('deckOrder', {order: {key:'initialOrder'}}), '牌堆初始顺序 · 1–32 · 从左到右，再到下一行');
+  for (const [suit, name] of [['Clubs','梅花'], ['Diamonds','方块'], ['Hearts','红桃'], ['Spades','黑桃']]) {
+    assert.equal(i18n.text('cardName', {card:{suit,rank:'Queen'}}), name + 'Q');
+  }
+  assert.equal(i18n.text('suit', {suit:'Null'}), '无将');
+  for (const [rank, letter] of [['Jack','J'],['Queen','Q'],['King','K'],['Ace','A']]) {
+    assert.equal(i18n.text('rankShort', {rank}), letter);
+  }
 });
 
 test('French selection translates controls, attributes and nested messages and persists on reload', () => {
@@ -101,6 +131,8 @@ test('language changes preserve docking state and history contents', () => {
   i18n.setLanguage('en'); assert.equal(button.textContent, 'Dock');
   i18n.setLanguage('fr'); assert.equal(button.textContent, 'Ancrer');
   assert.equal(button.attributes['aria-pressed'], 'true');
+  i18n.setLanguage('zh-Hans'); assert.equal(button.textContent, '固定');
+  assert.equal(button.attributes['aria-pressed'], 'true');
   assert.equal(history.textContent, 'Existing English event');
 });
 
@@ -111,6 +143,8 @@ test('recorded plays retain the original card and rule when history is translate
   const card = {suit: 'Hearts', rank: 'King'};
   i18n.label(event, 'played', {player: 1, card, points: 3, rule: {key: 'ruleFollow', params: {suit: 'Hearts'}}});
   card.rank = '7'; // Later game mutations cannot rewrite an earlier event.
+  i18n.setLanguage('zh-Hans');
+  assert.equal(event.textContent, 'Florian打出红桃K ♥（3分）。必须跟出红桃。');
   i18n.setLanguage('nl');
   assert.equal(event.textContent, 'Florian speelt Harten heer ♥ (3 pt). Volg harten.');
   i18n.setLanguage('en');
@@ -141,15 +175,15 @@ test('all 32 card labels survive every language switch without changing identifi
     i18n.title(face, 'cardName', {card});
     i18n.compact(document.getElementById(`rank-${index}`), 'rankShort', {rank: card.rank});
   }
-  for (const language of ['nl', 'en', 'fr', 'both', 'nl']) {
+  for (const language of ['nl', 'en', 'fr', 'zh-Hans', 'both', 'nl']) {
     i18n.setLanguage(language);
     const labels = deck.map((card, index) => document.getElementById(`card-${index}`).getAttribute('aria-label'));
     assert.equal(new Set(labels).size, 32);
     for (const [index, card] of deck.entries()) {
       const face = document.getElementById(`card-${index}`);
       assert.equal(face.getAttribute('title'), i18n.text('cardName', {card}));
-      assert.match(labels[index], language === 'en' ? /legal to play/ : language === 'fr' ? /peut être jouée/ : /mag gespeeld worden/);
-      if (language === 'nl' || language === 'fr') assert.doesNotMatch(labels[index], /Clubs|Diamonds|Hearts|Spades|Jack|Queen|King|Ace/);
+      assert.match(labels[index], language === 'zh-Hans' ? /可以出牌/ : language === 'en' ? /legal to play/ : language === 'fr' ? /peut être jouée/ : /mag gespeeld worden/);
+      if (['nl', 'fr', 'zh-Hans'].includes(language)) assert.doesNotMatch(labels[index], /Clubs|Diamonds|Hearts|Spades|Jack|Queen|King|Ace/);
     }
     assert.equal(JSON.stringify(deck), original);
   }
@@ -169,7 +203,7 @@ test('point counts and winner messages agree with their subjects', () => {
 });
 
 test('every message renders in all locales for all players and contracts', () => {
-  for (const language of ['nl', 'en', 'fr']) for (const suit of ['Clubs', 'Diamonds', 'Hearts', 'Spades', 'Null']) {
+  for (const language of ['nl', 'en', 'fr', 'zh-Hans']) for (const suit of ['Clubs', 'Diamonds', 'Hearts', 'Spades', 'Null']) {
     for (let player = 0; player < 4; player++) {
       const params = {suit, player, dealer: player, leader: (player + 1) % 4, players: [0, 2], team: player % 2,
         card: {suit: 'Hearts', rank: 'King'}, rank: 'King', count: 1, number: 8, packets: 10,

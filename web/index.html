@@ -8,12 +8,12 @@
   <title>Manille · The card table</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='56'%3E%E2%99%A0%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css?v=analytics-1">
-  <script type="module" src="app.mjs?v=analytics-1"></script>
+  <script type="module" src="app.mjs?v=autoplay-1"></script>
 </head>
 <body>
   <header class="masthead">
     <div><p class="eyebrow" data-i18n="tagline">FOUR PLAYERS · TWO TEAMS · 32 CARDS</p><h1>Manille<span data-i18n="subtitle">the card table</span></h1></div>
-    <div class="header-controls"><label class="language-picker"><span data-i18n="language">Taal / Language</span><select id="language"><option value="nl">Nederlands</option><option value="en">English</option><option value="fr" lang="fr">Français</option><option value="both" selected>Nederlands + English</option></select></label><button id="new-game" class="quiet" data-i18n="newGame">New game</button></div>
+    <div class="header-controls"><label class="language-picker"><span data-i18n="language">Taal / Language</span><select id="language"><option value="nl">Nederlands</option><option value="en">English</option><option value="fr" lang="fr">Français</option><option value="zh-Hans" lang="zh-Hans">简体中文</option><option value="both" selected>Nederlands + English</option></select></label><button id="new-game" class="quiet" data-i18n="newGame">New game</button></div>
     <button id="analytics-toggle" class="quiet" type="button" aria-controls="analytics-panel" aria-expanded="false" data-i18n="analytics">Analytics</button>
   </header>
   <main>
@@ -60,6 +60,7 @@
         <button id="show-last-hand" disabled aria-pressed="false" aria-controls="trick" data-i18n="lastHand">Show Last Hand</button>
         <button id="next-deal" disabled data-i18n="nextDeal">Next deal</button>
         <label><span data-i18n="speed">Speed</span> <select id="speed"><option value="1200" data-i18n="relaxed">Relaxed</option><option value="650" selected data-i18n="normal">Normal</option><option value="200" data-i18n="fast">Fast</option></select></label>
+        <label class="check"><input type="checkbox" id="autoplay-hand"> <span data-i18n="autoplayHand">Autoplay my hand</span></label>
         <label class="check"><input type="checkbox" id="show-hands" checked> <span data-i18n="showHands">Show all hands</span></label>
       </div>
       <p class="score-note" id="deal-score">Deal points: 0-0 / 60</p>
@@ -103,6 +104,6 @@
     </div>
   </main>
   <footer><span class="footer-title" data-i18n="footer">A little table, wherever you are.</span> <span data-i18n="browserOnly">Plays entirely in your browser.</span></footer>
-  <noscript><span lang="nl">Schakel JavaScript in om Manille te spelen.</span> / <span lang="en">Please enable JavaScript to play Manille.</span></noscript>
+  <noscript><span lang="nl">Schakel JavaScript in om Manille te spelen.</span> / <span lang="en">Please enable JavaScript to play Manille.</span> / <span lang="zh-Hans">请启用 JavaScript 以开始游戏。</span></noscript>
 </body>
 </html>

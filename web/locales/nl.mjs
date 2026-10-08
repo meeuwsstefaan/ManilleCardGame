@@ -4,6 +4,8 @@ const symbols = {Clubs:'♣', Diamonds:'♦', Hearts:'♥', Spades:'♠'};
 const suits = {Clubs:'Klaveren', Diamonds:'Ruiten', Hearts:'Harten', Spades:'Schoppen', Null:'Zonder troef'};
 const ranks = {Jack:'Boer', Queen:'Vrouw', King:'Heer', Ace:'Aas'};
 export default {
+  autoplayHand: "Speel mijn hand automatisch", autoplayJoin: "De computer beslist voor jou of je meegaat.",
+  cardPoints: p => p.points + ' pt',
   analytics: 'Statistieken', analyticsRefresh: 'Vernieuwen', analyticsMetric: 'Meting', analyticsTotal: 'Totaal',
   analyticsWindow: 'Laatste 14 dagen, inclusief vandaag. Openbare totalen.',
   analyticsPreview: 'Lokaal voorbeeld — alleen testgegevens. Deze cijfers komen niet van de openbare website.',
