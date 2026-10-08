@@ -7,13 +7,14 @@
   <meta name="description" content="A private little table for a game of Manille.">
   <title>Manille · The card table</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='56'%3E%E2%99%A0%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="style.css?v=languages-3">
-  <script type="module" src="app.mjs?v=languages-3"></script>
+  <link rel="stylesheet" href="style.css?v=analytics-1">
+  <script type="module" src="app.mjs?v=analytics-1"></script>
 </head>
 <body>
   <header class="masthead">
     <div><p class="eyebrow" data-i18n="tagline">FOUR PLAYERS · TWO TEAMS · 32 CARDS</p><h1>Manille<span data-i18n="subtitle">the card table</span></h1></div>
     <div class="header-controls"><label class="language-picker"><span data-i18n="language">Taal / Language</span><select id="language"><option value="nl">Nederlands</option><option value="en">English</option><option value="fr" lang="fr">Français</option><option value="both" selected>Nederlands + English</option></select></label><button id="new-game" class="quiet" data-i18n="newGame">New game</button></div>
+    <button id="analytics-toggle" class="quiet" type="button" aria-controls="analytics-panel" aria-expanded="false" data-i18n="analytics">Analytics</button>
   </header>
   <main>
     <section class="scorebar" aria-label="Match scoreboard, target 101 counted points" data-i18n-aria="scoreboard">
@@ -63,6 +64,24 @@
       </div>
       <p class="score-note" id="deal-score">Deal points: 0-0 / 60</p>
       <p class="score-note" data-i18n="scoreNote">Match target: 101. Only points above 30 in a completed deal count; Null and joined trump double those points.</p>
+    </section>
+    <section id="analytics-panel" class="analytics-panel" aria-labelledby="analytics-title" hidden>
+      <div class="analytics-heading"><h2 id="analytics-title" data-i18n="analytics">Analytics</h2><button id="analytics-refresh" type="button" data-i18n="analyticsRefresh">Refresh</button></div>
+      <p id="analytics-window" data-i18n="analyticsWindow">Last 14 days, including today. Public aggregate figures.</p>
+      <p id="analytics-period">—</p>
+      <table>
+        <thead><tr><th scope="col" data-i18n="analyticsMetric">Measurement</th><th scope="col" data-i18n="analyticsTotal">Total</th></tr></thead>
+        <tbody>
+          <tr><th scope="row" data-i18n="analyticsVisitors">Estimated unique visitors</th><td id="analytics-visitors">—</td></tr>
+          <tr><th scope="row" data-i18n="analyticsStarted">Visitors who played a first card</th><td id="analytics-started">—</td></tr>
+          <tr><th scope="row" data-i18n="analyticsCompleted">Completed deals (eight tricks)</th><td id="analytics-completed">—</td></tr>
+          <tr><th scope="row" data-i18n="analyticsReplayed">Players who started another deal</th><td id="analytics-replayed">—</td></tr>
+          <tr><th scope="row" data-i18n="analyticsSources">Referral sources (visitors per source)</th><td><ul id="analytics-sources"></ul></td></tr>
+        </tbody>
+      </table>
+      <p id="analytics-status" role="status" aria-live="polite"></p>
+      <p class="analytics-note" data-i18n="analyticsExplanation">Visitors are estimated per browser. Another deal counts after a player completes a deal and plays in the next one during the same visit. A visitor can appear under multiple referral sources.</p>
+      <label class="check"><input id="analytics-exclude" type="checkbox"><span data-i18n="analyticsExclude">Exclude my future visits and games on this browser</span></label>
     </section>
     <div class="details-grid">
       <section id="history-panel" class="history-panel floating" aria-labelledby="history-title">

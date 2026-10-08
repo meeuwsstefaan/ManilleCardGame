@@ -26,7 +26,13 @@ class Element {
 }
 
 test('app shuffles and deals the preview, pauses for joining, scores once, and resets', async () => {
-  const saved = {document: globalThis.document, setTimeout, clearTimeout, confirm: globalThis.confirm, random: Math.random, localStorage: globalThis.localStorage};
+  const saved = {document: globalThis.document, setTimeout, clearTimeout, confirm: globalThis.confirm, random: Math.random, localStorage: globalThis.localStorage, fetch: globalThis.fetch};
+  const analyticsEvents = [];
+  globalThis.fetch = async (url, options) => {
+    assert.equal(url, '/.netlify/functions/manille-analytics');
+    if (options.method === 'POST') analyticsEvents.push(JSON.parse(options.body));
+    return {ok: true, json: async () => ({visitors:1,started:0,completed:0,replayed:0,sources:[],from:'2026-10-01',to:'2026-10-14'})};
+  };
   const stored = new Map();
   stored.set('manille.language', 'en');
   globalThis.localStorage = {getItem: key => stored.get(key) ?? null, setItem: (key, value) => stored.set(key, value)};
@@ -38,6 +44,7 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
   let seed = 42, pending = null, pendingId = null, timerId = 0;
   Math.random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 2 ** 32; };
   globalThis.document = {getElementById: get, createElement: () => new Element(), documentElement: {dataset: {}},
+    defaultView: {location: {hostname:'example.com',port:''}, addEventListener() {}}, referrer: 'https://reddit.com/r/cards',
     querySelectorAll: selector => {
       const all = new Set();
       const visit = el => { if (all.has(el)) return; all.add(el); el.children.forEach(visit); };
@@ -175,6 +182,13 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
   }
   try {
     await import('./app.mjs');
+    assert.equal(get('analytics-panel').hidden, true);
+    const timerBeforeAnalytics = pending;
+    get('analytics-toggle').click();
+    assert.equal(get('analytics-panel').hidden, false);
+    get('analytics-toggle').click();
+    assert.equal(get('analytics-panel').hidden, true);
+    assert.equal(pending, timerBeforeAnalytics, 'analytics must not change the game timer');
     assert.equal(get('suit-buttons').children.length, 5);
     assert.equal(get('shuffle-panel').hidden, false);
     assert.deepEqual(preview(), makeDeck().map(card => `${card.rank} of ${card.suit}`));
@@ -308,6 +322,13 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
     assert.equal(finalCollections, completed + 1);
     assert.ok(reviews > collections, 'also review while a new trick is in progress');
     assert.ok(completed > 1); assert.ok(observedJoin); assert.equal(joined, 1); assert.ok(passed > 0);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(analyticsEvents.filter(event => event.type === 'visit').length, 1);
+    assert.equal(analyticsEvents.filter(event => event.type === 'start').length, 1);
+    assert.equal(analyticsEvents.filter(event => event.type === 'replay').length, 1);
+    const completions = analyticsEvents.filter(event => event.type === 'complete');
+    assert.equal(completions.length, completed + 1, 'each finished deal counted once despite reviews and language changes');
+    assert.equal(new Set(completions.map(event => event.deal)).size, completed + 1);
     get('show-last-hand').click();
     get('new-game').click();
     assert.equal(get('show-last-hand').disabled, true);
@@ -337,5 +358,6 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
     globalThis.document = saved.document; globalThis.setTimeout = saved.setTimeout;
     globalThis.clearTimeout = saved.clearTimeout; globalThis.confirm = saved.confirm; Math.random = saved.random;
     globalThis.localStorage = saved.localStorage;
+    globalThis.fetch = saved.fetch;
   }
 });

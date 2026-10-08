@@ -164,6 +164,97 @@ with `manille.py`.
 
 When your teammate is currently winning the trick, computers play the highest-value legal card (10, Ace, King, Queen, Jack, 9, 8, 7). This takes priority over the trump and suit-avoidance preferences described below. Equal ranks prefer non-trump. Following suit and all other legality rules still apply. This strategy applies in both browser and desktop games.
 
+## Public browser analytics
+
+The **Analytics** button opens and closes a table below the game controls. It is
+public, hidden initially, and translated in Dutch, English, French and bilingual
+mode. Opening it does not pause, restart or change the game. **Refresh** fetches
+the current figures; there is no polling.
+
+The reporting window is today plus the previous 13 UTC dates:
+
+| Measurement | Definition |
+| --- | --- |
+| Estimated unique visitors | Distinct random browser IDs with activity in the window. |
+| Visitors who played a first card | Distinct browser IDs that played a human card. |
+| Completed deals | Distinct completed eight-trick deals with human participation. |
+| Players who started another deal | Distinct browser IDs that played a human card in a later deal after completing one during the same page visit. |
+| Referral sources | Distinct browser IDs per referring domain; same-site and missing referrers are grouped as direct/unknown. A visitor can appear in multiple sources. |
+
+A random ID is stored locally for up to 30 days. Clearing browser storage,
+private browsing, storage blocking, multiple devices or expiration affect the
+estimate. Analytics records contain no names, card hands, IP addresses or full
+referrer URLs. The hosting provider still handles normal HTTP traffic and logs.
+Records older than 30 days are removed by a daily scheduled function. Select
+**Exclude my future visits and games on this browser** in the panel before
+playtesting; already recorded activity remains in the totals. Normal localhost
+play through `play_web.py` is excluded. Tracking failures never stop gameplay.
+Client-reported public analytics are approximate, not an abuse-proof audit log.
+
+### Netlify setup
+
+The shared service is implemented in `netlify/analytics-service.mjs` and
+`netlify/functions/`. It uses the site's Netlify Blobs store, with immutable
+event keys and conditional inserts instead of a shared counter. Duplicate
+requests are deduplicated; overlapping players cannot overwrite one another.
+The public endpoint exposes aggregate totals only. It rejects cross-origin
+writes, validates bounded payloads and applies a Netlify per-IP/domain rate limit.
+The report refuses to present partial totals if its 50,000-event window cap is
+exceeded. Hosting and storage consume the existing Netlify account's allowances;
+no separate analytics subscription is needed.
+
+Install the Node dependency (the Python game still uses only the standard library):
+
+```powershell
+npm ci
+npm test
+```
+
+`netlify.toml` describes a **standalone game** deployment. For the existing
+`101net.dev/manille/` site, preserve the entire site's current publish folder and
+replace only its `manille/` assets with `web/` (excluding `*.test.mjs`). Deploy the
+full site together with these two functions and their shared service module.
+**Do not deploy just `web/` over 101net.dev**: that would replace the portfolio.
+Static ZIP drag-and-drop alone does not bundle these server functions. Use the
+Netlify CLI (from this project, overriding `--dir` with the full-site folder) or
+merge the functions/dependency into the existing site's build. The existing
+site's forms, redirects and configuration must be retained.
+
+First authenticate the CLI if needed:
+
+```powershell
+npm exec --yes --package=netlify-cli -- netlify login
+```
+
+Before production, build the functions and deploy a draft of the complete site:
+
+```powershell
+npm exec --yes --package=netlify-cli -- netlify functions:build --src netlify/functions --functions .netlify/functions-build
+# Substitute the verified full-site folder and existing Netlify project ID:
+npm exec --yes --package=netlify-cli -- netlify deploy --no-build --dir "C:\path\to\complete-site" --functions .netlify/functions-build --site EXISTING_PROJECT_ID
+```
+
+After verifying the draft, the same deploy command with `--prod` publishes it.
+Draft Netlify hostnames containing `--` use a separate preview store. Production
+uses `manille-analytics-v1`, which survives deployments. Scheduled cleanup runs
+on the published deployment. Preview data is isolated and not part of the public
+production figures. Collection starts after deployment; earlier visits cannot
+be reconstructed. A static-only or unavailable backend displays an unavailable
+message rather than invented zero totals.
+
+### Local integration preview
+
+```powershell
+npm run preview:analytics
+```
+
+Open `http://127.0.0.1:8767`. This dedicated preview includes a separate in-memory
+endpoint and counts local test play only; the data disappears when stopped.
+It never connects to production storage. The ordinary `play_web.py` launcher
+continues serving the static game and shows that shared analytics are unavailable
+locally. Tests cover event deduplication, simultaneous writes, the reporting
+window, expiration, opt-out, unavailable storage, translation and full-match hooks.
+
 ## Other run modes
 
 In the browser, **Show Last Hand** reviews the last collected trick in the center of the table, with its winning card highlighted in gold. Play pauses during review; **Back to Game** restores the current trick and the previous pause/resume state. The review resets for each new deal.

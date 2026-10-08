@@ -2,6 +2,17 @@ const names = ["You","Florian","Your teammate","Odette"];
 const pointCount = count => count + (count === 1 ? ' point' : ' points');
 const symbols = {Clubs:'♣', Diamonds:'♦', Hearts:'♥', Spades:'♠'};
 export default {
+  analytics: 'Analytics', analyticsRefresh: 'Refresh', analyticsMetric: 'Measurement', analyticsTotal: 'Total',
+  analyticsWindow: 'Last 14 days, including today. Public aggregate figures.',
+  analyticsPreview: 'Local preview — test data only. These figures are not from the public website.',
+  analyticsVisitors: 'Estimated unique visitors', analyticsStarted: 'Visitors who played a first card',
+  analyticsCompleted: 'Completed deals (eight tricks)', analyticsReplayed: 'Players who started another deal',
+  analyticsSources: 'Referral sources (visitors per source)', analyticsDirect: 'Direct / same site / unknown',
+  analyticsLoading: 'Loading analytics…', analyticsLoaded: 'Figures updated.', analyticsEmpty: 'No visits recorded in this period yet.',
+  analyticsUnavailable: 'Analytics are unavailable. Try Refresh later; the game still works normally.',
+  analyticsLocal: 'Local play is excluded. Shared analytics are available on the published Netlify site.',
+  analyticsExplanation: 'Visitors are estimated per browser using a random ID stored for up to 30 days. Another deal counts when someone completes a deal and plays a card in a later deal during the same visit. A visitor can appear under multiple sources. Only referral domains are recorded; no names, hands or full URLs. Public figures are approximate and may miss blocked requests.',
+  analyticsExclude: 'Exclude my future visits and games on this browser',
   language: 'Language', tagline: 'FOUR PLAYERS · TWO TEAMS · 32 CARDS', subtitle: 'the card table',
   newGame: 'New game', ourTeam: 'YOUR TEAM', opponents: 'OPPONENTS', partners: 'You + your teammate',
   dealCards: 'Deal cards', chooseTrump: 'Choose your trump:', joinQuestion: "Join the opposing team's trump?",

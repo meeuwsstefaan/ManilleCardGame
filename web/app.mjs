@@ -1,10 +1,12 @@
 import {Deal, Match, TRUMP_CHOICES, NULL_TRUMP, makeDeck, cardId, hinduShuffle, points, legalCards, winningPlay, chooseComputerCard, chooseComputerTrump, chooseComputerJoin, ruleHint} from './engine.mjs';
 import {setupHistoryPanel} from './history-panel.mjs';
 import {createI18n} from './i18n.mjs';
+import {setupAnalytics} from './analytics.mjs';
 let languageStorage;
 try { languageStorage = localStorage; } catch { /* Browser storage is optional. */ }
 const i18n = createI18n(document, languageStorage);
 setupHistoryPanel(document, i18n);
+const analytics = setupAnalytics(document, i18n, languageStorage);
 const $ = id => document.getElementById(id);
 const symbols = {Clubs:'♣', Diamonds:'♦', Hearts:'♥', Spades:'♠'};
 const message = (key, params = {}) => ({key, params});
@@ -227,6 +229,7 @@ function play(card) {
   const player = deal.currentPlayer;
   const rule = ruleHint(deal.hands[player], deal.trick, deal.trump);
   deal.play(card);
+  if (player === 0) analytics.humanPlayed();
   log('played', {player, card, points: points(card), rule});
 
   if (deal.trick.length === 4) {
@@ -235,6 +238,7 @@ function play(card) {
   }
   if (deal.finished) {
     const earned = match.scoreDeal(deal);
+    analytics.completeDeal();
     log('dealScored', {scores: deal.scores, earned, totals: match.totals});
     if (match.winner !== null) log('matchWon', {team: match.winner});
   }
@@ -261,6 +265,7 @@ function advance() {
 
 function startDeal(dealer, deck) {
   clearTimer(); joinPending = false; shuffleStage = false; trickCollected = false; deal = new Deal(dealer, Math.random, deck);
+  analytics.beginDeal();
   log('dealStarted', {number: dealNumber, dealer, leader: deal.currentPlayer});
   afterAction();
 }

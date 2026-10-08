@@ -4,6 +4,17 @@ const symbols = {Clubs:'♣', Diamonds:'♦', Hearts:'♥', Spades:'♠'};
 const suits = {Clubs:'Klaveren', Diamonds:'Ruiten', Hearts:'Harten', Spades:'Schoppen', Null:'Zonder troef'};
 const ranks = {Jack:'Boer', Queen:'Vrouw', King:'Heer', Ace:'Aas'};
 export default {
+  analytics: 'Statistieken', analyticsRefresh: 'Vernieuwen', analyticsMetric: 'Meting', analyticsTotal: 'Totaal',
+  analyticsWindow: 'Laatste 14 dagen, inclusief vandaag. Openbare totalen.',
+  analyticsPreview: 'Lokaal voorbeeld — alleen testgegevens. Deze cijfers komen niet van de openbare website.',
+  analyticsVisitors: 'Geschat aantal unieke bezoekers', analyticsStarted: 'Bezoekers die een eerste kaart speelden',
+  analyticsCompleted: 'Voltooide giften (acht slagen)', analyticsReplayed: 'Spelers die aan een volgende gift begonnen',
+  analyticsSources: 'Verwijzende websites (bezoekers per bron)', analyticsDirect: 'Rechtstreeks / eigen site / onbekend',
+  analyticsLoading: 'Statistieken laden…', analyticsLoaded: 'Cijfers bijgewerkt.', analyticsEmpty: 'Nog geen bezoeken geregistreerd in deze periode.',
+  analyticsUnavailable: 'Statistieken zijn niet beschikbaar. Probeer later opnieuw; het spel blijft normaal werken.',
+  analyticsLocal: 'Lokaal spelen telt niet mee. Gedeelde statistieken zijn beschikbaar op de gepubliceerde Netlify-site.',
+  analyticsExplanation: 'Bezoekers worden per browser geschat met een willekeurige code die maximaal 30 dagen wordt bewaard. Een volgende gift telt wanneer iemand een gift voltooit en tijdens hetzelfde bezoek een kaart speelt in een latere gift. Een bezoeker kan bij meerdere bronnen staan. Alleen verwijzende domeinen worden geregistreerd; geen namen, handen of volledige URLs. De openbare cijfers zijn schattingen en kunnen geblokkeerde verzoeken missen.',
+  analyticsExclude: 'Mijn toekomstige bezoeken en spellen in deze browser niet meetellen',
   language: 'Taal', tagline: 'VIER SPELERS · TWEE TEAMS · 32 KAARTEN', subtitle: 'de kaarttafel',
   newGame: 'Nieuw spel', ourTeam: 'JOUW TEAM', opponents: 'TEGENSTANDERS', partners: 'Jij + je teamgenoot',
   dealCards: 'Kaarten delen', chooseTrump: 'Kies je troef:', joinQuestion: 'Meegaan met de troef van de tegenstanders?',
