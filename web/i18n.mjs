@@ -1,11 +1,13 @@
 import en from './locales/en.mjs';
 import nl from './locales/nl.mjs';
+import fr from './locales/fr.mjs';
 
 export const LANGUAGE_STORAGE_KEY = 'manille.language';
-export const LANGUAGES = ['nl', 'en', 'both'];
+export const LANGUAGES = ['nl', 'en', 'fr', 'both'];
+const dictionaries = {en, nl, fr};
 
 export function formatMessage(key, params = {}, language = 'en') {
-  const dictionary = language === 'nl' ? nl : en;
+  const dictionary = dictionaries[language] || en;
   if (!(key in dictionary)) throw new Error(`Missing translation: ${key}`);
   const values = Object.fromEntries(Object.entries(params).map(([name, value]) =>
     [name, value && typeof value === 'object' && 'key' in value
@@ -22,10 +24,11 @@ export function createI18n(document, storage) {
   } catch { /* Storage may be disabled; the selector still works. */ }
 
   function text(key, params = {}) {
-    if (!(key in en) || !(key in nl)) throw new Error(`Missing translation: ${key}`);
+    if (Object.values(dictionaries).some(dictionary => !(key in dictionary))) throw new Error(`Missing translation: ${key}`);
+    if (language !== 'both') return formatMessage(key, params, language);
     const english = formatMessage(key, params, 'en');
     const dutch = formatMessage(key, params, 'nl');
-    return language === 'both' ? (dutch === english ? dutch : `${dutch} / ${english}`) : language === 'nl' ? dutch : english;
+    return dutch === english ? dutch : `${dutch} / ${english}`;
   }
 
   function label(element, key, params = {}) {
@@ -34,7 +37,7 @@ export function createI18n(document, storage) {
     const value = text(key, params);
     if (language !== 'both' || element.tagName === 'OPTION' || formatMessage(key, params, 'nl') === formatMessage(key, params, 'en')) {
       element.textContent = value;
-      element.setAttribute('lang', language === 'en' ? 'en' : 'nl');
+      element.setAttribute('lang', language === 'both' ? 'nl' : language);
       return;
     }
     const primary = document.createElement('span');
@@ -63,7 +66,7 @@ export function createI18n(document, storage) {
   }
 
   function refresh() {
-    document.documentElement.lang = language === 'en' ? 'en' : 'nl';
+    document.documentElement.lang = language === 'both' ? 'nl' : language;
     document.documentElement.dataset.language = language;
     document.title = `Manille · ${text('subtitle')}`;
     for (const [attribute, update, values] of [

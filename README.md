@@ -91,15 +91,17 @@ If any player's initial eight-card hand has zero points, the board pauses before
 ## Play in a browser
 
 Use the **Taal / Language** selector at the top to choose **Nederlands**,
-**English**, or **Nederlands + English** (the default). Bilingual controls show
+**English**, **Français**, or **Nederlands + English** (the default). Bilingual controls show
 Dutch first and English underneath. The browser remembers this choice when
 storage is available. Switching language updates controls without restarting
 the deal or changing its timers, cards, scores, history, or floating-panel position.
 Browser translation is implemented: controls, card names,
 live messages, rule explanations, decision history and detailed rules support
-all three language modes. Existing history entries translate immediately when
+all four language modes. Existing history entries translate immediately when
 you change language. Cards use B/V/H/A in Dutch, J/Q/K/A in English and compact
-bilingual ranks such as B/J. Full card names appear in tooltips and accessible labels.
+bilingual ranks such as B/J. French uses V/D/R/A, with translated card names,
+rules, live messages, and history in `web/locales/fr.mjs`.
+Full card names appear in tooltips and accessible labels.
 The internal English suit/rank identifiers and saved deck format stay the same.
 Stage Three adds translation regression checks and small-screen polish. The deck
 preview uses four columns on screens up to 480 pixels wide so bilingual ranks

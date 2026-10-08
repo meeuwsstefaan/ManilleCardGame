@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {createI18n, formatMessage, LANGUAGE_STORAGE_KEY} from './i18n.mjs';
 import en from './locales/en.mjs';
 import nl from './locales/nl.mjs';
+import fr from './locales/fr.mjs';
 import {setupHistoryPanel} from './history-panel.mjs';
 import {makeDeck, points} from './engine.mjs';
 
@@ -28,12 +29,36 @@ function fixture() {
   return {document, storage, values};
 }
 
-test('all static markup labels and locale keys have both translations', () => {
+test('all static markup labels and locale keys have all three translations', () => {
   assert.deepEqual(Object.keys(en).sort(), Object.keys(nl).sort());
+  assert.deepEqual(Object.keys(en).sort(), Object.keys(fr).sort());
   const html = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
   for (const [, key] of html.matchAll(/data-i18n(?:-aria)?="([^"]+)"/g)) {
-    assert.ok(en[key] && nl[key], key);
+    assert.ok(en[key] && nl[key] && fr[key], key);
   }
+  assert.match(html, /<option value="fr" lang="fr">Français<\/option>/);
+});
+
+test('French selection translates controls, attributes and nested messages and persists on reload', () => {
+  const {document, storage, values} = fixture();
+  const button = document.getElementById('deal-cards'); button.setAttribute('data-i18n', 'dealCards');
+  const i18n = createI18n(document, storage);
+  document.getElementById('language').handlers.change({target: {value: 'fr'}});
+  assert.equal(button.textContent, 'Distribuer les cartes');
+  assert.equal(button.getAttribute('lang'), 'fr');
+  assert.equal(document.documentElement.lang, 'fr');
+  assert.equal(document.title, 'Manille · la table de jeu');
+  assert.equal(values.get(LANGUAGE_STORAGE_KEY), 'fr');
+  assert.equal(createI18n(document, storage).language, 'fr');
+  assert.equal(i18n.text('deckOrder', {order: {key: 'initialOrder'}}), 'Ordre initial du paquet · 1–32 · de gauche à droite, puis à la ligne suivante');
+  for (const [suit, name] of [['Clubs', 'trèfle'], ['Diamonds', 'carreau'], ['Hearts', 'cœur'], ['Spades', 'pique']]) {
+    assert.equal(i18n.text('cardName', {card: {suit, rank: 'Queen'}}), 'Dame de ' + name);
+  }
+  for (const [rank, expected] of [['Jack', 'V'], ['Queen', 'D'], ['King', 'R'], ['Ace', 'A']]) {
+    assert.equal(i18n.text('rankShort', {rank}), expected);
+  }
+  assert.equal(i18n.text('pointsWon', {player: 0, points: 1}), 'Vous remportez 1 point.');
+  assert.equal(i18n.text('pointsWon', {player: 1, points: 2}), 'Florian remporte 2 points.');
 });
 
 test('default is bilingual; controls retain Dutch and English language spans', () => {
@@ -74,6 +99,8 @@ test('language changes preserve docking state and history contents', () => {
   button.handlers.click();
   assert.equal(button.textContent, 'Vastzetten');
   i18n.setLanguage('en'); assert.equal(button.textContent, 'Dock');
+  i18n.setLanguage('fr'); assert.equal(button.textContent, 'Ancrer');
+  assert.equal(button.attributes['aria-pressed'], 'true');
   assert.equal(history.textContent, 'Existing English event');
 });
 
@@ -88,6 +115,8 @@ test('recorded plays retain the original card and rule when history is translate
   assert.equal(event.textContent, 'Florian speelt Harten heer ♥ (3 pt). Volg harten.');
   i18n.setLanguage('en');
   assert.equal(event.textContent, 'Florian plays King ♥ (3 pt). Follow hearts.');
+  i18n.setLanguage('fr');
+  assert.equal(event.textContent, 'Florian joue Roi de cœur ♥ (3 pt). Fournissez à cœur.');
 });
 
 test('every suit and face rank has Dutch names, compact bilingual ranks and accessible names', () => {
@@ -112,15 +141,15 @@ test('all 32 card labels survive every language switch without changing identifi
     i18n.title(face, 'cardName', {card});
     i18n.compact(document.getElementById(`rank-${index}`), 'rankShort', {rank: card.rank});
   }
-  for (const language of ['nl', 'en', 'both', 'nl']) {
+  for (const language of ['nl', 'en', 'fr', 'both', 'nl']) {
     i18n.setLanguage(language);
     const labels = deck.map((card, index) => document.getElementById(`card-${index}`).getAttribute('aria-label'));
     assert.equal(new Set(labels).size, 32);
     for (const [index, card] of deck.entries()) {
       const face = document.getElementById(`card-${index}`);
       assert.equal(face.getAttribute('title'), i18n.text('cardName', {card}));
-      assert.match(labels[index], language === 'en' ? /legal to play/ : /mag gespeeld worden/);
-      if (language === 'nl') assert.doesNotMatch(labels[index], /Clubs|Diamonds|Hearts|Spades|Jack|Queen|King|Ace/);
+      assert.match(labels[index], language === 'en' ? /legal to play/ : language === 'fr' ? /peut être jouée/ : /mag gespeeld worden/);
+      if (language === 'nl' || language === 'fr') assert.doesNotMatch(labels[index], /Clubs|Diamonds|Hearts|Spades|Jack|Queen|King|Ace/);
     }
     assert.equal(JSON.stringify(deck), original);
   }
@@ -139,8 +168,8 @@ test('point counts and winner messages agree with their subjects', () => {
   assert.equal(formatMessage('matchWon', {team: 1}), 'Opponents win the match.');
 });
 
-test('every message renders in both locales for all players and contracts', () => {
-  for (const language of ['nl', 'en']) for (const suit of ['Clubs', 'Diamonds', 'Hearts', 'Spades', 'Null']) {
+test('every message renders in all locales for all players and contracts', () => {
+  for (const language of ['nl', 'en', 'fr']) for (const suit of ['Clubs', 'Diamonds', 'Hearts', 'Spades', 'Null']) {
     for (let player = 0; player < 4; player++) {
       const params = {suit, player, dealer: player, leader: (player + 1) % 4, players: [0, 2], team: player % 2,
         card: {suit: 'Hearts', rank: 'King'}, rank: 'King', count: 1, number: 8, packets: 10,

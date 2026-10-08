@@ -68,6 +68,15 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
     assert.deepEqual(get('history').children, before.history);
     assert.deepEqual(get('trick-collection').children, before.faces);
     assert.deepEqual(get('trick').children, before.trick);
+    get('language').handlers.change({target: {value: 'fr'}});
+    assert.notEqual(get('status').textContent, before.status);
+    assert.notEqual(get('history').children[0].textContent, before.texts[0]);
+    assert.equal(pending, before.timer);
+    assert.deepEqual(score(), before.scores);
+    assert.deepEqual(get('history').children, before.history);
+    assert.deepEqual(get('trick-collection').children, before.faces);
+    assert.deepEqual(get('trick').children, before.trick);
+    assert.equal(document.documentElement.lang, 'fr');
     get('language').handlers.change({target: {value: 'both'}});
     assert.equal(get('status').children[1].lang, 'en');
     get('language').handlers.change({target: {value: 'en'}});
@@ -125,7 +134,7 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
       const seedAfterClick = seed;
       const animation = pending;
       const historyBeforeLanguage = [...get('history').children];
-      for (const language of ['nl', 'both', 'en']) {
+      for (const language of ['nl', 'fr', 'both', 'en']) {
         get('language').handlers.change({target: {value: language}});
         assert.equal(pending, animation, 'language changes preserve the shuffle timer');
         assert.deepEqual(get('deck-preview').children.map(item => {
@@ -176,7 +185,7 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
     // Concealed hands must stay concealed, including labels and tooltips.
     get('show-hands').checked = false;
     get('show-hands').handlers.change();
-    for (const language of ['nl', 'both', 'en']) {
+    for (const language of ['nl', 'fr', 'both', 'en']) {
       get('language').handlers.change({target: {value: language}});
       for (const player of [1, 2, 3]) for (const card of get(`seat-${player}`).children[1].children) {
         assert.equal(card.getAttribute('data-i18n-aria'), 'faceDown');
