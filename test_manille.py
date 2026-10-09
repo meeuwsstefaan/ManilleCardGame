@@ -849,7 +849,7 @@ class ManilleTests(unittest.TestCase):
                 hand = [Card("Clubs", "9"), Card("Clubs", "King"),
                         Card("Clubs", "Ace"), Card("Diamonds", "10")]
                 with self.subTest(trump=trump, partner=partner_winning):
-                    lower_allowed = partner_winning and trump != "Clubs"
+                    lower_allowed = partner_winning
                     self.assertEqual(legal_cards(hand, trick, trump),
                                      hand[:3] if lower_allowed else hand[1:3])
                     deal = BoardDeal(0, random.Random(42))

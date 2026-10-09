@@ -82,7 +82,7 @@ Click **Show Last Hand** to view the most recently completed trick on the board,
 
 Each completed trick is added to the game deck in the order its cards were played. After all eight tricks, those same 32 collected cards are used for the next deal's shuffling. This also applies in console and Docker mode.
 
-If an opponent trumps a non-trump lead and you can follow the led suit, every card of that suit is legal, including lower cards. You must still follow suit. When trump itself is led, overtrumping remains mandatory when possible.
+If an opponent trumps a non-trump lead and you can follow the led suit, every card of that suit is legal, including lower cards. You must still follow suit. When trump itself is led, overtrumping is mandatory when possible only if an opponent is winning. With a winning partner, any card of the led suit is legal, including a lower trump.
 
 Following suit is always mandatory. If you cannot follow and your partner is winning, you may discard another suit instead of playing trump. This applies whether your partner is winning with the led suit or with trump. If you choose to trump, lower trumps are allowed only when forced. When an opponent is winning, you must play trump if unable to follow and holding trump, and overtrump when possible.
 

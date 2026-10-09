@@ -96,8 +96,34 @@ test('lower trump is excluded with a winning partner when a discard exists', () 
   assert.deepEqual(ids(legalCards([hearts('7')], trick, 'Hearts')), ids([hearts('7')]));
 });
 
-test('trump lead still requires overtrumping with a winning partner', () => {
-  assert.deepEqual(ids(legalCards([hearts('7'), hearts('10')], [[0, hearts('Ace')], [1, hearts('8')]], 'Hearts')), ids([hearts('10')]));
+test('winning partner permits any trump follower in every seat and play position', () => {
+  for (let player = 0; player < 4; player++) {
+    for (const fourth of [false, true]) {
+      const trick = [
+        ...(fourth ? [[(player + 1) % 4, hearts('9')]] : []),
+        [(player + 2) % 4, hearts('Ace')], [(player + 3) % 4, hearts('8')],
+      ];
+      const hand = [hearts('7'), hearts('10'), clubs('10')];
+      assert.deepEqual(legalCards(hand, trick, 'Hearts'), hand.slice(0, 2));
+      assert.deepEqual(ruleHint(hand, trick, 'Hearts'), {key: 'rulePartnerFollow', params: {suit: 'Hearts'}});
+      const deal = ready();
+      deal.chooseTrump('Hearts');
+      deal.leader = trick[0][0];
+      deal.trick = [...trick];
+      deal.hands[player] = [...hand];
+      assert.throws(() => deal.play(clubs('10')), /Illegal card/);
+      deal.play(hearts('7'));
+      assert.deepEqual(deal.trick.at(-1), [player, hearts('7')]);
+      assert.equal(winningPlay(deal.trick, 'Hearts')[0], (player + 2) % 4);
+    }
+  }
+});
+
+test('opponent overtaking partner restores mandatory overtrumping', () => {
+  const trick = [[1, hearts('7')], [2, hearts('King')], [3, hearts('Ace')]];
+  const hand = [hearts('8'), hearts('10'), clubs('10')];
+  assert.deepEqual(legalCards(hand, trick, 'Hearts'), [hearts('10')]);
+  assert.deepEqual(ruleHint(hand, trick, 'Hearts'), {key: 'ruleHigher', params: {suit: 'Hearts'}});
 });
 
 test('Null has no trump and computer picks highest-value legal card', () => {

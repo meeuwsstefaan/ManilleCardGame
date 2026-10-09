@@ -46,6 +46,8 @@ export function legalCards(hand, trick, trump) {
   const player = (trick.at(-1)[0] + 1) % 4;
   const partnerWinning = winningPlay(trick, trump)[0] === (player + 2) % 4;
   const following = hand.filter(card => card.suit === trick[0][1].suit);
+  // Following trump must not force us to overtake our winning partner.
+  if (partnerWinning && following.length) return following;
   const trumpsPlayed = trick.filter(([, card]) => card.suit === trump);
   const highest = Math.max(-1, ...trumpsPlayed.map(([, card]) => strength(card)));
   const winningTrumps = hand.filter(card => card.suit === trump && strength(card) > highest);
@@ -75,7 +77,7 @@ export function ruleHint(hand, trick, trump) {
   const partnerWinning = winningPlay(trick, trump)[0] === ((trick.at(-1)[0] + 1) % 4 + 2) % 4;
   if (hand.some(card => card.suit === led)) {
     const bestFollowing = Math.max(...trick.filter(([, card]) => card.suit === led).map(([, card]) => strength(card)));
-    if (partnerWinning && led !== trump) return {key: 'rulePartnerFollow', params: {suit: led}};
+    if (partnerWinning) return {key: 'rulePartnerFollow', params: {suit: led}};
     if (led !== trump && winningPlay(trick, trump)[1].suit === trump) return {key: 'ruleTrumpedFollow', params: {suit: led}};
     if (choices.some(card => strength(card) > bestFollowing)) return {key: 'ruleHigher', params: {suit: led}};
     return {key: 'ruleFollow', params: {suit: led}};

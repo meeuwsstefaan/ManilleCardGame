@@ -924,7 +924,7 @@ class ManilleBoard:
             obligation = f"Must follow {d.trick[0][1].suit}."
             best_following = max(c.strength for _, c in d.trick
                                  if c.suit == d.trick[0][1].suit)
-            if partner_is_winning(player, d.trick, d.trump) and d.trick[0][1].suit != d.trump:
+            if partner_is_winning(player, d.trick, d.trump):
                 obligation += " Partner is winning: a higher card is optional."
             elif (
                 d.trick[0][1].suit != d.trump

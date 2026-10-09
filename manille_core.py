@@ -130,13 +130,16 @@ def legal_cards(hand: list[Card], trick: Trick, trump: str) -> list[Card]:
     When void, play trump if available, unless your partner is winning.
     Overtrump when possible; otherwise any held trump is a forced choice.
     A lower trump is allowed only when no other legal choice remains,
-    including when following trump suit.
+    except when following suit with a winning partner: any follower is legal,
+    including a lower trump when trump was led.
     """
     if not trick:
         return list(hand)
     # Turns proceed clockwise, so the next player follows the last play.
     player = (trick[-1][0] + 1) % 4
     following = [card for card in hand if card.suit == trick[0][1].suit]
+    if following and partner_is_winning(player, trick, trump):
+        return following
     trumps_played = [card for _, card in trick if card.suit == trump]
     best_trump = max((card.strength for card in trumps_played), default=-1)
     winning_trumps = [

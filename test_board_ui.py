@@ -794,6 +794,27 @@ class BoardUITests(unittest.TestCase):
                 self.assertEqual(board.deal.trick_number, trick_number + 1)
                 self.assertFalse(board.canvas.find_withtag("table-card"))
 
+    def test_partner_winning_trump_lead_allows_clicking_lower_trump(self):
+        board = self.create_board(self.root, human=True, seed=42)
+        board.PLAY_SECONDS = 0.01
+        self.root.update()
+        board.deal.choose_trump("Hearts")
+        board.deal.leader = 1
+        board.deal.trick = [
+            (1, Card("Hearts", "9")), (2, Card("Hearts", "Ace")),
+            (3, Card("Hearts", "8")),
+        ]
+        lower = Card("Hearts", "7")
+        board.deal.hands[0] = [lower, Card("Hearts", "10"), Card("Clubs", "10")]
+        board.render()
+        self.assertEqual([hit[-1] for hit in board.hits], board.deal.hands[0][:2])
+        x1, y1, x2, y2, _ = board.hits[0]
+        board.click_card(SimpleNamespace(x=(x1 + x2) / 2, y=(y1 + y2) / 2))
+        self.wait_for_collection(board)
+        self.assertEqual(board.deal.trick[-1], (0, lower))
+        self.assertEqual(winning_play(board.deal.trick, "Hearts")[0], 2)
+        self.assertIn("a higher card is optional", board.log.get("1.0", "end"))
+
     def test_partner_winning_with_trump_allows_gold_clickable_discard(self):
         board = self.create_board(self.root, human=True, seed=42)
         board.PLAY_SECONDS = 0.01
