@@ -77,6 +77,28 @@ class BoardUITests(unittest.TestCase):
         board.step()
         self.wait_for_collection(board)
 
+    def test_deal_button_visible_and_usable_with_large_display_scaling(self):
+        original_scaling = self.root.tk.call("tk", "scaling")
+        self.addCleanup(lambda: self.root.tk.call("tk", "scaling", original_scaling))
+        self.root.tk.call("tk", "scaling", 3.0)
+        board = self.create_board(self.root, seed=42, stop_shuffle=False)
+        self.root.geometry("1100x780")
+        self.root.update()
+        button = board.deal_button
+        self.assertTrue(button.winfo_ismapped())
+        self.assertEqual(str(button["state"]), "normal")
+        x = button.winfo_rootx() - self.root.winfo_rootx()
+        y = button.winfo_rooty() - self.root.winfo_rooty()
+        self.assertGreaterEqual(x, 0)
+        self.assertGreaterEqual(y, 0)
+        self.assertLessEqual(x + button.winfo_width(), self.root.winfo_width())
+        self.assertLessEqual(y + button.winfo_height(), self.root.winfo_height())
+        self.assertEqual(button.master.winfo_width(), 310)
+        button.invoke()
+        self.assertFalse(board.shuffling)
+        self.assertIsNotNone(board.deal)
+        self.assertEqual(sum(map(len, board.deal.hands)), 32)
+
     def test_show_last_hand_is_inline_pauses_and_restores_live_trick(self):
         board = self.create_board(self.root, human=False, seed=42, stop_shuffle=False)
         board.CAPTURE_SECONDS = 0.01
@@ -1308,6 +1330,29 @@ class BoardUITests(unittest.TestCase):
         self.assertIsNone(board.pending)
         self.assertIn("Null: cannot follow suit; any card is legal.", board.log.get("1.0", "end"))
 
+    def test_opponent_trump_requires_clickable_discard_when_no_overtrump(self):
+        board = self.create_board(self.root, human=True, seed=42)
+        board.PLAY_SECONDS = 0.01
+        self.root.update()
+        board.deal.choose_trump("Hearts")
+        board.deal.leader = 1
+        board.deal.trick = [
+            (1, Card("Clubs", "7")), (2, Card("Clubs", "8")),
+            (3, Card("Hearts", "King")),
+        ]
+        lower, discard = Card("Hearts", "Queen"), Card("Diamonds", "10")
+        board.deal.hands[0] = [lower, discard]
+        board.render()
+        self.assertEqual([hit[-1] for hit in board.hits], [discard])
+        with self.assertRaises(ValueError):
+            board.deal.play(lower)
+        x1, y1, x2, y2, _ = board.hits[0]
+        board.click_card(SimpleNamespace(x=(x1 + x2) / 2, y=(y1 + y2) / 2))
+        self.wait_for_collection(board)
+        self.assertEqual(board.deal.trick[-1], (0, discard))
+        self.assertIn(lower, board.deal.hands[0])
+        self.assertIn("Cannot follow suit or overtrump", board.log.get("1.0", "end"))
+
     def test_lower_trumps_are_gold_only_when_forced_even_with_winning_partner(self):
         import tkinter as tk
         for partner_winning in (False, True):
@@ -1328,7 +1373,7 @@ class BoardUITests(unittest.TestCase):
                         lower = Card("Hearts", "Queen")
                         discard = Card("Diamonds", "10")
                         board.deal.hands[0] = [lower, Card("Hearts", "8"), discard]
-                        if forced and partner_winning:
+                        if forced:
                             board.deal.hands[0].remove(discard)  # No legal discard remains.
                         if not forced:
                             board.deal.hands[0].append(Card("Hearts", "Ace"))

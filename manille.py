@@ -352,14 +352,20 @@ class ManilleBoard:
         self.canvas = tk.Canvas(
             root, background="#145442", highlightthickness=0
         )
-        self.canvas.pack(side="left", fill="both", expand=True)
         panel = ttk.Frame(root, padding=12, width=310)
+        # Reserve the controls before giving the board the remaining space.
         panel.pack(side="right", fill="y")
         panel.pack_propagate(False)
+        self.canvas.pack(side="left", fill="both", expand=True)
 
         ttk.Label(
             panel, text="MANILLE", font=("Segoe UI", 21, "bold")
         ).pack(anchor="w")
+        # Keep the shuffle screen's primary action above wrapping status text.
+        self.deal_button = ttk.Button(
+            panel, text="Deal cards", command=self.stop_shuffle
+        )
+        self.deal_button.pack(fill="x", pady=4)
         self.names_button = ttk.Button(
             panel, text="Player names...", command=self.edit_player_names
         )
@@ -408,11 +414,6 @@ class ManilleBoard:
             panel, text="Choose trump", command=self.set_human_trump
         )
         self.trump_button.pack(fill="x", pady=4)
-
-        self.deal_button = ttk.Button(
-            panel, text="Deal cards", command=self.stop_shuffle
-        )
-        self.deal_button.pack(fill="x", pady=4)
 
         self.join_var = tk.BooleanVar(value=False)
         self.join_frame = ttk.Frame(panel)
@@ -963,6 +964,8 @@ class ManilleBoard:
                 )
                 else "Must play trump: no higher trump is available."
             )
+        elif any(c.suit == d.trump for c in d.hands[player]):
+            obligation = "Cannot follow suit or overtrump: discard a non-trump; a lower trump is not allowed."
         else:
             obligation = "Cannot follow suit and no trump available: any card is legal."
         d.play(card)

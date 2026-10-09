@@ -128,7 +128,7 @@ def legal_cards(hand: list[Card], trick: Trick, trump: str) -> list[Card]:
     If a non-trump lead has been trumped, any card of the led suit is legal.
 
     When void, play trump if available, unless your partner is winning.
-    Overtrump when possible; otherwise any held trump is a forced choice.
+    Overtrump when possible; otherwise discard a non-trump if available.
     A lower trump is allowed only when no other legal choice remains,
     except when following suit with a winning partner: any follower is legal,
     including a lower trump when trump was led.
@@ -156,10 +156,9 @@ def legal_cards(hand: list[Card], trick: Trick, trump: str) -> list[Card]:
             else higher or following
         )
     else:
-        trumps = [card for card in hand if card.suit == trump]
         choices = (
             list(hand) if partner_is_winning(player, trick, trump)
-            else winning_trumps or trumps or list(hand)
+            else winning_trumps or list(hand)
         )
     if trumps_played:
         without_lower_trumps = [

@@ -58,8 +58,7 @@ export function legalCards(hand, trick, trump) {
     choices = partnerWinning || (trumpsPlayed.length && trick[0][1].suit !== trump)
       ? following : higher.length ? higher : following;
   } else {
-    const trumps = hand.filter(card => card.suit === trump);
-    choices = partnerWinning ? [...hand] : winningTrumps.length ? winningTrumps : trumps.length ? trumps : [...hand];
+    choices = partnerWinning ? [...hand] : winningTrumps.length ? winningTrumps : [...hand];
   }
   if (trumpsPlayed.length) {
     const withoutLowerTrumps = choices.filter(card => card.suit !== trump || strength(card) > highest);
@@ -89,5 +88,5 @@ export function ruleHint(hand, trick, trump) {
     return choices.some(card => strength(card) > highest)
       ? {key: 'ruleWinningTrump'} : {key: 'ruleForcedTrump'};
   }
-  return {key: 'ruleDiscard'};
+  return {key: hand.some(card => card.suit === trump) ? 'ruleCannotOvertrump' : 'ruleDiscard'};
 }

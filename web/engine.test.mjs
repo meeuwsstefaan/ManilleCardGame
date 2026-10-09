@@ -83,11 +83,36 @@ test('a trumped non-trump lead allows any follow', () => {
   assert.deepEqual(ids(legalCards(hand, [[0, clubs('King')], [1, hearts('8')]], 'Hearts')), ids(hand.slice(0, 2)));
 });
 
-test('forced trump remains mandatory when no overtrump is available', () => {
+test('discard instead of undertrumping an opponent unless only trumps remain', () => {
   const hand = [hearts('7'), spades('10')];
   const trick = [[0, clubs('King')], [1, spades('8')], [2, hearts('Ace')]];
-  assert.deepEqual(ids(legalCards(hand, trick, 'Hearts')), ids([hearts('7')]));
-  assert.deepEqual(ruleHint(hand, trick, 'Hearts'), {key: 'ruleForcedTrump'});
+  assert.deepEqual(ids(legalCards(hand, trick, 'Hearts')), ids([spades('10')]));
+  assert.deepEqual(ruleHint(hand, trick, 'Hearts'), {key: 'ruleCannotOvertrump'});
+  assert.deepEqual(legalCards([hearts('7')], trick, 'Hearts'), [hearts('7')]);
+  assert.deepEqual(ruleHint([hearts('7')], trick, 'Hearts'), {key: 'ruleForcedTrump'});
+});
+
+test('opponent trump blocks lower trumps in every seat and play position', () => {
+  for (let player = 0; player < 4; player++) {
+    for (const fourth of [false, true]) {
+      const trick = [
+        ...(!fourth ? [] : [[(player + 1) % 4, clubs('9')]]),
+        [(player + 2) % 4, clubs('King')], [(player + 3) % 4, hearts('Ace')],
+      ];
+      const lower = hearts('7'), discard = spades('10');
+      const deal = ready();
+      deal.chooseTrump('Hearts');
+      deal.leader = trick[0][0];
+      deal.trick = [...trick];
+      deal.hands[player] = [lower, discard];
+      assert.deepEqual(legalCards(deal.hands[player], trick, 'Hearts'), [discard]);
+      assert.deepEqual(chooseComputerCard(player, deal.hands[player], trick, 'Hearts'), discard);
+      assert.throws(() => deal.play(lower), /Illegal card/);
+      assert.deepEqual(deal.hands[player], [lower, discard]);
+      deal.play(discard);
+      assert.deepEqual(deal.trick.at(-1), [player, discard]);
+    }
+  }
 });
 
 test('lower trump is excluded with a winning partner when a discard exists', () => {

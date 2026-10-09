@@ -72,7 +72,7 @@ class ManilleTests(unittest.TestCase):
              [Card("Hearts", "7"), Card("Hearts", "Ace"), Card("Diamonds", "7")],
              Card("Hearts", "Ace")),
             ([(3, Card("Clubs", "7")), (0, Card("Hearts", "King"))],
-             [Card("Hearts", "7"), Card("Diamonds", "7")], Card("Hearts", "7")),
+             [Card("Hearts", "7"), Card("Diamonds", "7")], Card("Diamonds", "7")),
             ([], [Card("Hearts", "7"), Card("Hearts", "10")], Card("Hearts", "10")),
         )
         for trick, hand, expected in cases:
@@ -415,10 +415,10 @@ class ManilleTests(unittest.TestCase):
             ([(3, Card("Clubs", "7")), (0, Card("Hearts", "King"))],
              [Card("Hearts", "10"), Card("Hearts", "Ace"), Card("Spades", "7")],
              Card("Hearts", "Ace")),
-            # Forced lower trump: save the Queen when the 8 is legal.
+            # Cannot overtrump: discard instead of wasting a lower trump.
             ([(3, Card("Clubs", "7")), (0, Card("Hearts", "King"))],
              [Card("Hearts", "Queen"), Card("Hearts", "8"), Card("Spades", "7")],
-             Card("Hearts", "8")),
+             Card("Spades", "7")),
             # A high-value card must still be played when it is the only legal card.
             ([(0, Card("Clubs", "Ace"))],
              [Card("Clubs", "10"), Card("Spades", "7")],
@@ -682,7 +682,7 @@ class ManilleTests(unittest.TestCase):
             [hand[0]],
         )
 
-    def test_overtrump_or_play_lower_trump_when_void(self):
+    def test_overtrump_or_discard_when_void(self):
         trick = [
             (0, Card("Clubs", "7")),
             (1, Card("Hearts", "King")),
@@ -697,7 +697,7 @@ class ManilleTests(unittest.TestCase):
         )
         hand.remove(hand[1])
         self.assertEqual(
-            legal_cards(hand, trick, "Hearts"), [hand[0]]
+            legal_cards(hand, trick, "Hearts"), [hand[1]]
         )
         self.assertEqual(
             legal_cards([hand[1]], trick, "Hearts"),
@@ -798,7 +798,7 @@ class ManilleTests(unittest.TestCase):
             with self.subTest(winner=winning_player):
                 self.assertEqual(legal_cards(lower, trick, "Hearts"), lower)
                 self.assertEqual(legal_cards(lower + [discard], trick, "Hearts"),
-                                 [discard] if winning_player == 1 else lower)
+                                 [discard])
                 higher = Card("Hearts", "Ace")
                 self.assertEqual(legal_cards(lower + [higher], trick, "Hearts"), [higher])
 
