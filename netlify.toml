@@ -1,0 +1,8 @@
+# Standalone game deployment. For 101net.dev, keep the FULL website as publish
+# directory and merge these functions into that site's deployment (see README).
+[build]
+  publish = "web"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"

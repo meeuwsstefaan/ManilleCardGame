@@ -1,0 +1,11 @@
+{
+  "name": "manille-card-game",
+  "private": true,
+  "scripts": {
+    "test": "node --test web/engine.test.mjs web/app.test.mjs web/i18n.test.mjs web/analytics.test.mjs netlify/analytics-service.test.mjs",
+    "preview:analytics": "node scripts/preview-analytics.mjs"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^10.0.0"
+  }
+}
