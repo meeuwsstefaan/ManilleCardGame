@@ -160,9 +160,13 @@ test('every suit and face rank has Dutch names, compact bilingual ranks and acce
     assert.equal(formatMessage('cardName', {card: {suit, rank: 'Ace'}}, 'nl'), dutch + ' aas');
   }
   const rank = document.getElementById('rank');
-  i18n.compact(rank, 'rankShort', {rank: 'King'}); assert.equal(rank.textContent, 'H/K');
-  i18n.setLanguage('nl'); assert.equal(rank.textContent, 'H');
-  i18n.setLanguage('en'); assert.equal(rank.textContent, 'K');
+  for (const [name, letter] of [['Jack', 'J'], ['Queen', 'Q'], ['King', 'K'], ['Ace', 'A']]) {
+    i18n.compact(rank, 'rankShort', {rank: name});
+    for (const language of ['both', 'nl', 'en']) {
+      i18n.setLanguage(language);
+      assert.equal(rank.textContent, letter);
+    }
+  }
   assert.match(formatMessage('cardAccessible', {card: {suit: 'Spades', rank: 'Jack'}, points: 1, legal: true}, 'nl'), /Schoppen boer, 1 punt, mag gespeeld worden/);
 });
 

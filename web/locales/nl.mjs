@@ -35,7 +35,7 @@ export default {
 
   player: p => names[p.player], team: p => 'TEAM ' + p.team, dealerBadge: 'DELER',
   suit: p => suits[p.suit], cardName: p => suits[p.card.suit] + ' ' + (ranks[p.card.rank] || p.card.rank).toLowerCase(),
-  rankShort: p => ({Jack:'B', Queen:'V', King:'H', Ace:'A'}[p.rank] || p.rank), faceDown: 'Gedekte kaart',
+  rankShort: p => ({Jack:'J', Queen:'Q', King:'K', Ace:'A'}[p.rank] || p.rank), faceDown: 'Gedekte kaart',
   cardAccessible: p => suits[p.card.suit] + ' ' + (ranks[p.card.rank] || p.card.rank).toLowerCase() + ', ' + pointCount(p.points) + (p.legal ? ', mag gespeeld worden' : '') + (p.winner ? p.previous ? ', won de vorige slag' : ', wint momenteel de slag' : ''),
   cardCount: p => p.count + (p.count === 1 ? ' kaart' : ' kaarten'),
   initialOrder: 'Oorspronkelijke kaartvolgorde', retainedOrder: 'Bewaarde kaartvolgorde', redealOrder: 'Bewaarde volgorde voor het opnieuw delen',

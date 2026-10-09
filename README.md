@@ -98,8 +98,8 @@ the deal or changing its timers, cards, scores, history, or floating-panel posit
 Browser translation is implemented: controls, card names,
 live messages, rule explanations, decision history and detailed rules support
 all five language modes. Existing history entries translate immediately when
-you change language. Cards use B/V/H/A in Dutch, J/Q/K/A in English and compact
-bilingual ranks such as B/J. French uses V/D/R/A, with translated card names,
+you change language. Cards use J/Q/K/A in Dutch, English and bilingual mode.
+French uses V/D/R/A, with translated card names,
 rules, live messages, and history in `web/locales/fr.mjs`.
 Simplified Chinese uses J/Q/K/A, Chinese suit names, and `web/locales/zh-Hans.mjs`
 for controls, rules, history and analytics. Full card names appear in tooltips and accessible labels.
