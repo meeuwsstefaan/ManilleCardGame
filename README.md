@@ -1,6 +1,6 @@
 ## Screenshot
 
-![Manille game board](ManilleCardGame.png)
+![Manille game board](images/ManilleCardGame.png)
 
 The most popular card game in Flanders, Belgium, is now available — with source code — for the world! (06-Oct-2026)
 
