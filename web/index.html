@@ -7,8 +7,8 @@
   <meta name="description" content="A private little table for a game of Manillen.">
   <title>Manillen · The card table</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='56'%3E%E2%99%A0%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="style.css?v=analytics-1">
-  <script type="module" src="app.mjs?v=hints-1"></script>
+  <link rel="stylesheet" href="style.css?v=table-trump-1">
+  <script type="module" src="app.mjs?v=table-trump-1"></script>
 </head>
 <body>
   <header class="masthead">
@@ -26,6 +26,7 @@
       <section id="seat-2" class="seat north" aria-label="Your teammate" data-i18n-aria="teammate"></section>
       <section id="seat-1" class="seat west" aria-label="Florian"></section>
       <div class="table-center">
+        <div id="table-trump" class="table-trump" role="status" aria-live="polite" hidden></div>
         <p id="trick-label" class="eyebrow">TRICK 1 OF 8</p>
         <div id="trick" class="trick" aria-label="Current trick" data-i18n-aria="currentTrick"></div>
         <div id="shuffle-panel" hidden>

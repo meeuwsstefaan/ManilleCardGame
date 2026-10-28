@@ -95,6 +95,10 @@ function renderShuffle() {
 }
 
 function render() {
+  $('table-trump').hidden = shuffleStage;
+  if (!shuffleStage) {
+    show('table-trump', deal.trump === null ? 'chooseTrumpTitle' : deal.trump === NULL_TRUMP ? 'nullTrump' : 'trumpSuit', {suit: deal.trump, joined: deal.joinedBy !== null});
+  }
   $('hint').hidden = true;
   $('hint').textContent = '';
   $('autoplay-hand').disabled = $('show-hint').checked;

@@ -248,6 +248,23 @@ footer .i18n-primary, footer .i18n-secondary { float: none; }
   align-self: center;
 }
 
+.table-trump {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto 12px;
+  padding: 8px 18px;
+  border: 2px solid var(--gold);
+  border-radius: 12px;
+  background: #10382b;
+  color: #ffe2a0;
+  font-size: clamp(18px, 2.2vw, 28px);
+  font-weight: 800;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.table-trump[hidden] { display: none; }
+
 .table-center > .eyebrow {
   color: #d4dbc6;
 }
