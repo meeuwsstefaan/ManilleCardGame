@@ -281,13 +281,12 @@ The card chooser receives its own hand, the public trick, trump, the trump choos
 
 `choose_computer_card()` first calls `legal_cards()`. Every subsequent preference operates on that legal set.
 
-1. **Partner winning:** choose the highest-value legal card. Break ties by rank strength, then prefer non-trump. This happens before the other suit preferences.
+1. **Leading or partner winning:** choose the highest-value legal card. Break ties by rank strength, then prefer non-trump. This happens before the other suit preferences, even for a vulnerable suit or when another player chose trump. A top card means the best available legal card by these criteria, including an Ace or lower rank when no 10 is available.
 2. **Null:** normally choose the highest-value legal card. Against an opponent's opening 10, choose the cheapest legal card instead because that led 10 cannot be beaten in Null. Following suit still applies.
 3. **Trump chooser:** prefer legal cards of the chosen trump suit if any exist.
 4. **Opponents chose trump:** prefer legal non-trumps if available.
 5. **Observed vulnerable suits:** within the remaining candidates, avoid suits previously trumped by opponents when an alternative exists.
-6. **Leading:** prefer an available 5-point 10; otherwise lead cheaply.
-7. **Responding:** take the trick with the cheapest winning candidate, if one exists; otherwise discard the cheapest candidate.
+6. **Responding:** take the trick with the cheapest winning candidate, if one exists; otherwise discard the cheapest candidate.
 
 “Cheapest” is encoded with a tuple key: points first, whether the card is trump next, then strength. `min()` or `max()` with a short `lambda` function expresses these comparisons compactly. A **lambda** is simply a small unnamed function.
 
@@ -301,7 +300,7 @@ These choices are understandable teaching heuristics. Feeding a currently winnin
 
 ### Memory of public plays
 
-`record_trumped_suit()` notices when a player trumps a non-trump lead. It records the led suit for the opposing team. Both partners on that team can then avoid leading that vulnerable suit.
+`record_trumped_suit()` notices when a player trumps a non-trump lead. It records the led suit for the opposing team. Both partners can avoid that vulnerable suit when responding to a winning opponent; the top-card priority on leads and with a winning partner takes precedence.
 
 The observation sets belong to each deal/game object and reset for a new deal. They are not shared module-global memory. This prevents one independent game from contaminating another.
 

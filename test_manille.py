@@ -26,6 +26,25 @@ from manille import (
 
 
 class ManilleTests(unittest.TestCase):
+    def test_top_leads_without_tens_and_explanations(self):
+        from manille_ai import explain_computer_card
+        cases = (
+            ([Card("Hearts", "7"), Card("Clubs", "Ace")], Card("Clubs", "Ace")),
+            ([Card("Hearts", "King"), Card("Clubs", "Queen")], Card("Hearts", "King")),
+            ([Card("Hearts", "9"), Card("Clubs", "8")], Card("Hearts", "9")),
+            ([Card("Hearts", "Ace"), Card("Clubs", "Ace")], Card("Clubs", "Ace")),
+        )
+        for player in range(4):
+            for chooser in (None, 0, 1, 2, 3):
+                for trump in ("Hearts", NULL_TRUMP):
+                    for hand, expected in cases:
+                        with self.subTest(player=player, chooser=chooser, trump=trump, hand=hand):
+                            chosen = choose_computer_card(player, hand, [], trump, chooser, {"Clubs", "Hearts"})
+                            tied_in_null = trump == NULL_TRUMP and hand[0].rank == hand[1].rank
+                            self.assertEqual(chosen, hand[0] if tied_in_null else expected)
+                            reason = explain_computer_card(player, hand, [], trump, chosen, chooser, {"Clubs"})
+                            self.assertTrue(reason.startswith("Lead the highest-value legal card"))
+
     def test_partner_priority_uses_rank_ties_and_respects_legality(self):
         for player in range(4):
             trick = [((player + 2) % 4, Card("Clubs", "10")),
@@ -41,12 +60,12 @@ class ManilleTests(unittest.TestCase):
                         player, hand, trick, "Hearts", player, {"Spades", "Hearts"},
                     ), expected)
 
-    def test_opponents_of_trump_chooser_prefer_non_trumps_at_every_seat(self):
+    def test_top_leads_override_opponent_trump_preference_at_every_seat(self):
         trump_ten, discard = Card("Hearts", "10"), Card("Clubs", "7")
         for player in range(4):
             for chooser in range(4):
                 with self.subTest(player=player, chooser=chooser):
-                    expected = discard if team_of(player) != team_of(chooser) else trump_ten
+                    expected = trump_ten
                     self.assertEqual(choose_computer_card(
                         player, [trump_ten, discard], [], "Hearts", chooser,
                     ), expected)
@@ -55,11 +74,11 @@ class ManilleTests(unittest.TestCase):
             self.assertEqual(choose_computer_card(
                 player, [trump_ten, discard], partner_winning, "Hearts", (player + 1) % 4,
             ), trump_ten)
-        # The latest trump-avoidance preference still applies if the only
+        # Top-card leads take precedence even if the only
         # non-trump alternative is a suit previously trumped by an opponent.
         self.assertEqual(choose_computer_card(
             1, [trump_ten, discard], [], "Hearts", 0, {"Clubs"},
-        ), discard)
+        ), trump_ten)
 
     def test_opponent_trump_avoidance_preserves_forced_trumping_and_following(self):
         cases = (
@@ -85,7 +104,7 @@ class ManilleTests(unittest.TestCase):
         self.assertEqual(choose_computer_card(1, hand, [], NULL_TRUMP, 0), hand[0])
         self.assertEqual(choose_computer_card(1, hand, [], "Hearts"), hand[0])
 
-    def test_computers_avoid_opponent_trumped_suits_before_point_priority(self):
+    def test_top_leads_override_observed_vulnerable_suits(self):
         risky = Card("Clubs", "10")
         safe = Card("Diamonds", "7")
         for player in range(4):
@@ -93,7 +112,7 @@ class ManilleTests(unittest.TestCase):
                 self.assertEqual(choose_computer_card(
                     player, [risky, safe], [], "Hearts",
                     opponent_trumped_suits={"Clubs"},
-                ), safe)
+                ), risky)
                 self.assertEqual(choose_computer_card(
                     player, [risky], [], "Hearts",
                     opponent_trumped_suits={"Clubs"},
@@ -101,7 +120,7 @@ class ManilleTests(unittest.TestCase):
                 trump = Card("Hearts", "7")
                 self.assertEqual(choose_computer_card(
                     player, [risky, safe, trump], [], "Hearts", player, {"Clubs"},
-                ), trump)
+                ), risky)
         trick = [(0, Card("Spades", "10")), (1, Card("Spades", "7"))]
         self.assertEqual(choose_computer_card(
             2, [risky, safe], trick, "Hearts", opponent_trumped_suits={"Clubs"},
@@ -445,7 +464,7 @@ class ManilleTests(unittest.TestCase):
         hand = [Card("Hearts", "10"), Card("Clubs", "10")]
         self.assertEqual(choose_computer_card(0, hand, [], "Hearts"), hand[1])
 
-    def test_trump_chooser_prefers_legal_trump_on_leads_and_with_partner(self):
+    def test_top_cards_override_trump_chooser_preferences_on_leads_and_with_partner(self):
         for player, trump in enumerate(SUITS):
             led = next(suit for suit in SUITS if suit != trump)
             discard_suit = next(suit for suit in SUITS if suit not in (trump, led))
@@ -454,10 +473,10 @@ class ManilleTests(unittest.TestCase):
             discard = Card(discard_suit, "10")
             hand = [low, ace, discard]
             with self.subTest(player=player, trump=trump):
-                self.assertEqual(choose_computer_card(player, hand, [], trump, player), low)
+                self.assertEqual(choose_computer_card(player, hand, [], trump, player), discard)
                 self.assertEqual(choose_computer_card(player, hand, [], trump, (player + 1) % 4), discard)
                 ten = Card(trump, "10")
-                self.assertEqual(choose_computer_card(player, hand + [ten], [], trump, player), ten)
+                self.assertEqual(choose_computer_card(player, hand + [ten], [], trump, player), discard)
                 partner_led = [((player - 2) % 4, Card(led, "10")),
                                ((player - 1) % 4, Card(led, "7"))]
                 self.assertEqual(choose_computer_card(player, hand, partner_led, trump, player), discard)

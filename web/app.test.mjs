@@ -396,7 +396,29 @@ test('app shuffles and deals the preview, pauses for joining, scores once, and r
       } else if (!get('join-picker').hidden) {
         autoJoins++;
         assert.equal(get('step').disabled, true);
-      } else if (hand().some(card => !card.disabled)) autoCards++;
+      } else if (hand().some(card => !card.disabled)) {
+        autoCards++;
+        toggleAutoplay(true);
+        get('auto').click();
+        assert.ok(pending, 'autoplay has a pending move before hint is enabled');
+        get('show-hint').checked = true;
+        get('show-hint').handlers.change();
+        assert.equal(pending, null, 'hint cancels the automatic human move');
+        assert.equal(get('hint').hidden, false);
+        assert.match(get('hint').textContent, /^Hint: try /);
+        const suggestion = JSON.parse(get('hint').getAttribute('data-i18n-values')).suggestion.params.card;
+        assert.ok(hand().some(card => !card.disabled && card.getAttribute('title') === `${suggestion.rank} of ${suggestion.suit}`), 'hint names a legal card');
+        assert.equal(get('step').disabled, true, 'step cannot bypass the human decision');
+        assert.equal(get('autoplay-hand').disabled, true);
+        const count = hand().length;
+        hand().find(card => !card.disabled).click();
+        assert.equal(hand().length, count - 1, 'human can choose a card with autoplay checked');
+        assert.equal(get('hint').hidden, true, 'hint clears after playing');
+        if (!get('trick-collection').children.length) assert.ok(pending, 'computer play resumes after the human choice');
+        get('show-hint').checked = false;
+        get('show-hint').handlers.change();
+        continue;
+      }
       toggleAutoplay(true);
       assert.equal(pending, null, 'autoplay respects Pause');
       assert.equal(get('trump-picker').hidden, true);

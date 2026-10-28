@@ -163,7 +163,7 @@ With Node.js available, `py -3 -m unittest test_web_parity` also compares
 3,200 browser card decisions, 610 scoring cases, and 100 Hindu shuffles directly
 with `manille.py`.
 
-When your teammate is currently winning the trick, computers play the highest-value legal card (10, Ace, King, Queen, Jack, 9, 8, 7). This takes priority over the trump and suit-avoidance preferences described below. Equal ranks prefer non-trump. Following suit and all other legality rules still apply. This strategy applies in both browser and desktop games.
+When leading a trick or when your teammate is currently winning, computers play the highest-value legal card (10, Ace, King, Queen, Jack, 9, 8, 7). This takes priority over the trump and suit-avoidance preferences described below. Equal ranks prefer non-trump. Following suit and all other legality rules still apply. This strategy applies in both browser and desktop games.
 
 ## Public browser analytics
 
@@ -262,11 +262,11 @@ In the browser, **Show Last Hand** reviews the last collected trick in the cente
 
 In Null, an opponent's opening 10 cannot be beaten. Computers therefore play the lowest-value legal card against it, breaking ties by lowest rank. They must still follow suit, even if an off-suit card is cheaper. When a partner leads the 10, they feed points as usual; other Null situations retain the highest-value legal-card strategy. This applies in both the browser and desktop games.
 
-The computer that chose a trump suit prefers to lead and play legal cards of that suit. Within those legal trump cards, its usual point-value strategy still applies. Following suit and other mandatory rules take precedence, and Null strategy is unchanged. Human trump choosers receive a recommendation on the board and retain manual choice.
+The computer that chose a trump suit prefers legal cards of that suit when responding to a winning opponent. Within those legal trump cards, its usual point-value strategy still applies. Following suit and other mandatory rules take precedence, and Null strategy is unchanged. Human trump choosers receive a recommendation on the board and retain manual choice.
 
-When the opposing team chose trump, computers prefer legal non-trump cards, even instead of a trump 10. Mandatory following, trumping, and overtrumping take precedence; trump cards are still played when they are the only legal options. If your own team chose trump, this avoidance preference does not apply. Null strategy and human manual choice remain unchanged.
+When responding to a winning opponent whose team chose trump, computers prefer legal non-trump cards, even instead of a trump 10. Mandatory following, trumping, and overtrumping take precedence; trump cards are still played when they are the only legal options. If your own team chose trump, this avoidance preference does not apply. Null strategy and human manual choice remain unchanged.
 
-Computers remember suits that opponents have trumped during the current deal and avoid playing those suits whenever a legal alternative exists, including leading another suit instead of a vulnerable 10. Both partners share this observation. Mandatory following, trumping, and overtrumping still apply; if only cards of an avoided suit are legal, the computer plays one. This memory resets each deal, Null strategy is unchanged, and human players retain manual choice.
+Computers remember suits that opponents have trumped during the current deal and avoid playing those suits when responding to a winning opponent if a legal alternative exists. On leads and with a winning partner, highest-value card priority takes precedence. Both partners share this observation. Mandatory following, trumping, and overtrumping still apply; if only cards of an avoided suit are legal, the computer plays one. This memory resets each deal, Null strategy is unchanged, and human players retain manual choice.
 
 These examples use the Windows Python launcher. On macOS or Linux, replace `py -3` with `python3`.
 
@@ -370,3 +370,8 @@ On macOS/Linux, replace `py -3` with `python3`. Board tests open temporary windo
 ### Autoplay your hand
 
 In the browser, enable **Autoplay my hand** to let the existing computer strategy choose trump, decide whether to join, and play for your seat. It starts off on every page load. Uncheck it to take back the next decision. Pause, Step, Speed, and last-hand review apply to your automated seat too. Shuffling, dealing, zero-point redeals, and the next deal remain manual. Showing all hands does not give the strategy extra information. Automatically played cards do not count as a visitor manually playing their first card in analytics.
+
+
+### Card hints
+
+Check **Show hint** to see the AI recommendation on your turn. The game waits for you to click any legal card, with no time limit. While hints are enabled, **Autoplay my hand** is suspended (including manual trump and join choices); unchecking hints restores that autoplay preference. Computer turns continue normally after your choice. Hints use only your hand and public play information and are available in every supported language.

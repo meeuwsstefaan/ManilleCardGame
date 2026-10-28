@@ -21,7 +21,7 @@ def main():
     except OSError as exc:
         parser.exit(1, f'Cannot start the game: {exc}. Try --port 8766.\n')
     url = f'http://127.0.0.1:{server.server_port}/'
-    print(f'Manille: {url}\nPress Ctrl+C to stop the local server.', flush=True)
+    print(f'Manillen: {url}\nPress Ctrl+C to stop the local server.', flush=True)
     if not args.no_browser:
         webbrowser.open(url)
     try:

@@ -2,6 +2,8 @@ const names = ["You","Florian","Your teammate","Odette"];
 const pointCount = count => count + (count === 1 ? ' point' : ' points');
 const symbols = {Clubs:'♣', Diamonds:'♦', Hearts:'♥', Spades:'♠'};
 export default {
+  showHint: "Show hint",
+  cardHint: p => `Hint: try ${p.suggestion}. Take your time, then click any legal card. Autoplay waits for your choice.`,
   autoplayHand: "Autoplay my hand", autoplayJoin: "The computer is deciding whether to join for you.",
   cardPoints: p => p.points + ' pt',
   analytics: 'Analytics', analyticsRefresh: 'Refresh', analyticsMetric: 'Measurement', analyticsTotal: 'Total',
@@ -27,7 +29,7 @@ export default {
   howTo: 'How to play', rulesTitle: 'The rules used here',
   footer: 'A little table, wherever you are.', browserOnly: 'Plays entirely in your browser.',
   newGameConfirm: 'Start a new game and clear the scores?',
-  scoreboard: 'Match scoreboard, target 101 counted points', table: 'Manille card table',
+  scoreboard: 'Match scoreboard, target 101 counted points', table: 'Manillen card table',
   teammate: 'Your teammate', yourHand: 'Your hand', controls: 'Game controls',
   shuffle: 'Shuffle deck', deckPreview: 'All 32 cards in dealing order', currentTrick: 'Current trick', previousTrick: 'Last completed trick',
 

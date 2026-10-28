@@ -31,7 +31,7 @@ def choose_computer_card(
 
     With a winning partner, play the highest-value legal card before applying
     suit preferences; break value ties by rank, then conserve trump.
-    Prioritize legal 5-point cards on leads.
+    On leads, use the same highest-value priority before suit preferences.
     Against a winning opponent, win cheaply or discard the cheapest legal card.
     In Null, play the highest-value legal card, then highest rank, except
     against an opponent's opening 10: play the cheapest legal card instead.
@@ -44,7 +44,7 @@ def choose_computer_card(
     win, so this is a basic strategy rather than an optimal playing engine.
     """
     choices = legal_cards(hand, trick, trump)
-    if partner_is_winning(player, trick, trump):
+    if not trick or partner_is_winning(player, trick, trump):
         return max(choices, key=lambda card: (
             card.points, card.strength, card.suit != trump
         ))
@@ -62,11 +62,6 @@ def choose_computer_card(
         alternatives = [card for card in choices if card.suit not in opponent_trumped_suits]
         choices = alternatives or choices
     cheap = lambda card: (card.points, card.suit == trump, card.strength)
-    fives = [card for card in choices if card.points == 5]
-    if fives and not trick:
-        return min(fives, key=lambda card: card.suit == trump)
-    if not trick:
-        return min(choices, key=cheap)
     winners = [
         card for card in choices
         if winning_play(trick + [(player, card)], trump)[0] == player
@@ -110,6 +105,8 @@ def explain_computer_card(
     """Explain a card selected by choose_computer_card before it is played."""
     avoided = opponent_trumped_suits or set()
     partner_winning = partner_is_winning(player, trick, trump)
+    if not trick:
+        return "Lead the highest-value legal card; break ties by rank, then prefer non-trump."
     if partner_winning:
         reason = "Partner is winning: contribute the highest-value legal card."
     elif trump == NULL_TRUMP:
@@ -118,15 +115,6 @@ def explain_computer_card(
             reason = "Null: opponent led an unbeatable 10; play the lowest-value legal card."
         else:
             reason = "Null: play the highest-value legal card, prioritizing 5-point 10s."
-    elif card.points == 5 and (
-        not trick or partner_is_winning(player, trick, trump)
-    ):
-        reason = "Play a legal 5-point 10 first, conserving trump on equal points."
-    elif not trick:
-        reason = (
-            "Lead a low-value card, "
-            "conserving trump on equal points."
-        )
     elif (
         team_of(winning_play(trick, trump)[0])
         == team_of(player)

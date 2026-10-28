@@ -6,6 +6,8 @@ const ranks = {Jack:'Valet', Queen:'Dame', King:'Roi', Ace:'As'};
 const cardName = card => (ranks[card.rank] || card.rank) + ' de ' + suits[card.suit].toLowerCase();
 const verb = (player, plural, singular) => player === 0 ? plural : singular;
 export default {
+  showHint: "Afficher un conseil",
+  cardHint: p => `Conseil : essayez ${p.suggestion}. Prenez votre temps, puis cliquez sur une carte autorisée. Le jeu automatique attend votre choix.`,
   autoplayHand: "Jouer ma main automatiquement", autoplayJoin: "L’ordinateur décide pour vous s’il faut suivre l’atout.",
   cardPoints: p => p.points + ' pt',
   analytics: 'Statistiques', analyticsRefresh: 'Actualiser', analyticsMetric: 'Mesure', analyticsTotal: 'Total',
@@ -31,7 +33,7 @@ export default {
   howTo: 'Comment jouer', rulesTitle: 'Les règles utilisées ici',
   footer: 'Une petite table, où que vous soyez.', browserOnly: 'Se joue entièrement dans votre navigateur.',
   newGameConfirm: 'Commencer une nouvelle partie et remettre les scores à zéro ?',
-  scoreboard: 'Score de la partie, objectif : 101 points comptabilisés', table: 'Table de manille',
+  scoreboard: 'Score de la partie, objectif : 101 points comptabilisés', table: 'Table de Manillen',
   teammate: 'Votre partenaire', yourHand: 'Votre main', controls: 'Commandes du jeu',
   shuffle: 'Mélanger les cartes', deckPreview: 'Les 32 cartes dans l’ordre de distribution', currentTrick: 'Pli en cours', previousTrick: 'Dernier pli terminé',
 

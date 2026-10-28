@@ -1,6 +1,6 @@
 import {Deal, Match, TRUMP_CHOICES, NULL_TRUMP, makeDeck, cardId, hinduShuffle, points, legalCards, winningPlay, chooseComputerCard, chooseComputerTrump, chooseComputerJoin, ruleHint} from './engine.mjs';
 import {setupHistoryPanel} from './history-panel.mjs';
-import {createI18n} from './i18n.mjs?v=autoplay-1';
+import {createI18n} from './i18n.mjs?v=hints-1';
 import {setupAnalytics} from './analytics.mjs';
 let languageStorage;
 try { languageStorage = localStorage; } catch { /* Browser storage is optional. */ }
@@ -59,7 +59,7 @@ function cardView(card, {hidden = false, legal = false, winner = false, previous
   return element;
 }
 
-function autoplayHand() { return $('autoplay-hand').checked; }
+function autoplayHand() { return $('autoplay-hand').checked && !$('show-hint').checked; }
 
 function waitingForHuman() {
   return shuffleStage || collecting || showingLastHand || deal.zeroPointPlayers.length > 0 || (!autoplayHand() && (joinPending || (!deal.finished && (deal.trump === null ? deal.dealer === 0 : deal.trick.length < 4 && deal.currentPlayer === 0))));
@@ -95,6 +95,9 @@ function renderShuffle() {
 }
 
 function render() {
+  $('hint').hidden = true;
+  $('hint').textContent = '';
+  $('autoplay-hand').disabled = $('show-hint').checked;
   $('show-last-hand').disabled = !lastHand || shuffleStage || collecting;
   i18n.label($('show-last-hand'), showingLastHand ? 'back' : 'lastHand');
   $('show-last-hand').setAttribute('aria-pressed', String(showingLastHand));
@@ -110,6 +113,11 @@ function render() {
   const complete = deal.trick.length === 4;
   const active = !showingLastHand && deal.trump !== null && !joinPending && !complete && !deal.finished ? deal.currentPlayer : null;
   const choices = active !== null ? legalCards(deal.hands[active], deal.trick, deal.trump) : [];
+  if ($('show-hint').checked && active === 0 && !collecting && !deal.zeroPointPlayers.length) {
+    const card = chooseComputerCard(0, deal.hands[0], deal.trick, deal.trump, deal.dealer, deal.trumpedSuits[0]);
+    show('hint', 'cardHint', {suggestion: message('cardName', {card})});
+    $('hint').hidden = false;
+  }
 
   for (let player = 0; player < 4; player++) {
     const seat = $(`seat-${player}`);
@@ -377,6 +385,10 @@ $('speed').addEventListener('change', schedule);
 $('show-hands').addEventListener('change', render);
 // Do not restart animations or alter Pause when control changes hands.
 $('autoplay-hand').checked = false;
+$('show-hint').checked = false;
+$('show-hint').addEventListener('change', () => {
+  clearTimer(); render(); schedule();
+});
 $('autoplay-hand').addEventListener('change', () => {
   clearTimer(); render(); schedule();
 });

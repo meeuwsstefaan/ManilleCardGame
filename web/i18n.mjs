@@ -1,8 +1,8 @@
 // Version the complete translation import chain so cached modules stay in sync.
-import en from './locales/en.mjs?v=autoplay-1';
-import nl from './locales/nl.mjs?v=autoplay-1';
-import fr from './locales/fr.mjs?v=autoplay-1';
-import zhHans from './locales/zh-Hans.mjs?v=autoplay-1';
+import en from './locales/en.mjs?v=hints-1';
+import nl from './locales/nl.mjs?v=hints-1';
+import fr from './locales/fr.mjs?v=hints-1';
+import zhHans from './locales/zh-Hans.mjs?v=hints-1';
 
 export const LANGUAGE_STORAGE_KEY = 'manille.language';
 export const LANGUAGES = ['nl', 'en', 'fr', 'zh-Hans', 'both'];
@@ -70,7 +70,7 @@ export function createI18n(document, storage) {
   function refresh() {
     document.documentElement.lang = language === 'both' ? 'nl' : language;
     document.documentElement.dataset.language = language;
-    document.title = `Manille · ${text('subtitle')}`;
+    document.title = `Manillen · ${text('subtitle')}`;
     for (const [attribute, update, values] of [
       ['data-i18n', label, 'data-i18n-values'], ['data-i18n-aria', aria, 'data-i18n-aria-values'],
       ['data-i18n-compact', compact, 'data-i18n-compact-values'], ['data-i18n-title', title, 'data-i18n-title-values'],

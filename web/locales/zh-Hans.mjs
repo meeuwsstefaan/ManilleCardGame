@@ -5,6 +5,8 @@ const suits = {Clubs:'梅花', Diamonds:'方块', Hearts:'红桃', Spades:'黑�
 const ranks = {Jack:'J', Queen:'Q', King:'K', Ace:'A'};
 const cardName = card => suits[card.suit] + (ranks[card.rank] || card.rank);
 export default {
+  showHint: "显示提示",
+  cardHint: p => `提示：可以出${p.suggestion}。请慢慢考虑，然后点击任意合法的牌。自动出牌会等待您的选择。`,
   autoplayHand: "自动代打我的手牌", autoplayJoin: "电脑正在替你决定是否跟将。",
   cardPoints: p => p.points + '分',
   analytics: '访问统计', analyticsRefresh: '刷新', analyticsMetric: '统计项目', analyticsTotal: '总计',
@@ -30,7 +32,7 @@ export default {
   howTo: '玩法说明', rulesTitle: '本游戏采用的规则',
   footer: '无论身在何处，都有一张小牌桌。', browserOnly: '游戏完全在浏览器中运行。',
   newGameConfirm: '开始新比赛并清空比分？',
-  scoreboard: '比赛计分板，目标为101积分', table: 'Manille 牌桌',
+  scoreboard: '比赛计分板，目标为101积分', table: 'Manillen 牌桌',
   teammate: '你的队友', yourHand: '你的手牌', controls: '游戏操作',
   shuffle: '洗牌', deckPreview: '按发牌顺序排列的全部32张牌', currentTrick: '当前这一墩', previousTrick: '上一墩已完成的牌',
 

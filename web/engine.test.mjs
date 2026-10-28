@@ -9,6 +9,26 @@ const clubs = rank => card('Clubs', rank);
 const spades = rank => card('Spades', rank);
 const ids = cards => cards.map(cardId);
 
+test('leads use the top card before trump and vulnerable-suit preferences, even without a ten', () => {
+  const cases = [
+    [[hearts('7'), clubs('Ace')], clubs('Ace')],
+    [[hearts('King'), clubs('Queen')], hearts('King')],
+    [[hearts('9'), clubs('8')], hearts('9')],
+    [[hearts('Ace'), clubs('Ace')], clubs('Ace')],
+    [[hearts('10'), clubs('7')], hearts('10')],
+  ];
+  for (let player = 0; player < 4; player++) {
+    for (const chooser of [null, 0, 1, 2, 3]) {
+      for (const trump of ['Hearts', NULL_TRUMP]) {
+        for (const [hand, expected] of cases) {
+          const tiedInNull = trump === NULL_TRUMP && hand[0].rank === hand[1].rank;
+          assert.deepEqual(chooseComputerCard(player, hand, [], trump, chooser, new Set(['Hearts', 'Clubs'])), tiedInNull ? hand[0] : expected);
+        }
+      }
+    }
+  }
+});
+
 test('winning partner gets the highest legal rank before all suit preferences', () => {
   for (let player = 0; player < 4; player++) {
     const trick = [[(player + 2) % 4, clubs('10')], [(player + 3) % 4, clubs('7')]];

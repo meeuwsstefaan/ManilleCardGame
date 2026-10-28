@@ -4,7 +4,7 @@ import {SUITS, NULL_TRUMP, points, strength, legalCards, winningPlay, best} from
 export function chooseComputerCard(player, hand, trick, trump, trumpChooser = null, opponentTrumpedSuits = new Set()) {
   let choices = legalCards(hand, trick, trump);
   const partnerWinning = trick.length && winningPlay(trick, trump)[0] === (player + 2) % 4;
-  if (partnerWinning) {
+  if (!trick.length || partnerWinning) {
     return best(choices, card => [points(card), strength(card), Number(card.suit !== trump)]);
   }
   if (trump === NULL_TRUMP) {
@@ -23,11 +23,6 @@ export function chooseComputerCard(player, hand, trick, trump, trumpChooser = nu
   const alternatives = choices.filter(card => !opponentTrumpedSuits.has(card.suit));
   if (alternatives.length) choices = alternatives;
   const cheap = card => [points(card), Number(card.suit === trump), strength(card)];
-  const fives = choices.filter(card => points(card) === 5);
-  if (fives.length && !trick.length) return best(fives, card => [Number(card.suit === trump)], -1);
-
-  if (!trick.length) return best(choices, cheap, -1);
-
   const winners = choices.filter(card => winningPlay([...trick, [player, card]], trump)[0] === player);
   return best(winners.length ? winners : choices, cheap, -1);
 }

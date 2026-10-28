@@ -4,6 +4,8 @@ const symbols = {Clubs:'♣', Diamonds:'♦', Hearts:'♥', Spades:'♠'};
 const suits = {Clubs:'Klaveren', Diamonds:'Ruiten', Hearts:'Harten', Spades:'Schoppen', Null:'Zonder troef'};
 const ranks = {Jack:'Boer', Queen:'Vrouw', King:'Heer', Ace:'Aas'};
 export default {
+  showHint: "Toon hint",
+  cardHint: p => `Hint: probeer ${p.suggestion}. Neem je tijd en klik op een toegestane kaart. Automatisch spelen wacht op je keuze.`,
   autoplayHand: "Speel mijn hand automatisch", autoplayJoin: "De computer beslist voor jou of je meegaat.",
   cardPoints: p => p.points + ' pt',
   analytics: 'Statistieken', analyticsRefresh: 'Vernieuwen', analyticsMetric: 'Meting', analyticsTotal: 'Totaal',
@@ -29,7 +31,7 @@ export default {
   howTo: 'Zo speel je', rulesTitle: 'De spelregels van dit spel',
   footer: 'Een kaarttafel, waar je ook bent.', browserOnly: 'Speelt volledig in je browser.',
   newGameConfirm: 'Een nieuw spel starten en de scores wissen?',
-  scoreboard: 'Wedstrijdscore, doel: 101 getelde punten', table: 'Manillekaarttafel',
+  scoreboard: 'Wedstrijdscore, doel: 101 getelde punten', table: 'Manillenkaarttafel',
   teammate: 'Je teamgenoot', yourHand: 'Jouw hand', controls: 'Spelbediening',
   shuffle: 'Kaarten schudden', deckPreview: 'Alle 32 kaarten in deelvolgorde', currentTrick: 'Huidige slag', previousTrick: 'Laatst voltooide slag',
 

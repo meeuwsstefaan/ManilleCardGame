@@ -50,7 +50,7 @@ test('Simplified Chinese translates controls, nested messages, cards and analyti
   assert.equal(button.textContent, '发牌');
   assert.equal(button.getAttribute('lang'), 'zh-Hans');
   assert.equal(document.documentElement.lang, 'zh-Hans');
-  assert.equal(document.title, 'Manille · 牌桌');
+  assert.equal(document.title, 'Manillen · 牌桌');
   assert.equal(values.get(LANGUAGE_STORAGE_KEY), 'zh-Hans');
   assert.equal(createI18n(document, storage).language, 'zh-Hans');
   assert.equal(i18n.text('analytics'), '访问统计');
@@ -77,7 +77,7 @@ test('French selection translates controls, attributes and nested messages and p
   assert.equal(button.textContent, 'Distribuer les cartes');
   assert.equal(button.getAttribute('lang'), 'fr');
   assert.equal(document.documentElement.lang, 'fr');
-  assert.equal(document.title, 'Manille · la table de jeu');
+  assert.equal(document.title, 'Manillen · la table de jeu');
   assert.equal(values.get(LANGUAGE_STORAGE_KEY), 'fr');
   assert.equal(createI18n(document, storage).language, 'fr');
   assert.equal(i18n.text('deckOrder', {order: {key: 'initialOrder'}}), 'Ordre initial du paquet · 1–32 · de gauche à droite, puis à la ligne suivante');
@@ -210,6 +210,7 @@ test('every message renders in all locales for all players and contracts', () =>
   for (const language of ['nl', 'en', 'fr', 'zh-Hans']) for (const suit of ['Clubs', 'Diamonds', 'Hearts', 'Spades', 'Null']) {
     for (let player = 0; player < 4; player++) {
       const params = {suit, player, dealer: player, leader: (player + 1) % 4, players: [0, 2], team: player % 2,
+        suggestion: {key: 'cardName', params: {card: {suit: 'Hearts', rank: 'King'}}},
         card: {suit: 'Hearts', rank: 'King'}, rank: 'King', count: 1, number: 8, packets: 10,
         points: 3, score: 101, ours: 40, theirs: 20, scores: [40, 20], earned: [10, 0], totals: [101, 80],
         rule: {key: 'ruleFollow', params: {suit: 'Hearts'}}, order: {key: 'initialOrder'}};
