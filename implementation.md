@@ -1,10 +1,22 @@
 # Understanding the ManilleCardGame implementation
 
-This guide explains the source code in this checkout as inspected on 10 October 2026. It is written for someone learning Python. It describes how the current implementation works; it does not attempt to reconstruct the exact historical order in which it was written. Where a design benefit is discussed, that is an explanation of the structure visible in the code.
+This guide explains the source code in this checkout, reviewed and updated on 28 October 2026. It is written for someone learning Python. It describes how the current implementation works; it does not attempt to reconstruct the exact historical order in which it was written. Where a design benefit is discussed, that is an explanation of the structure visible in the code.
 
 The project is a four-player Manille learning game. One person can play with three computer players, or watch computer play. Players opposite each other are partners. There are 32 cards, eight tricks in a complete deal, and 60 card points available per deal. A **trick** is one round in which each player puts down one card. A **deal** starts with eight cards per player. A **match** accumulates counted points across deals.
 
 The project offers three interfaces: a Python desktop window, a Python terminal game, and a browser game written in JavaScript. The browser game has optional server-based analytics, but its card decisions and gameplay run in the browser.
+
+### Most recent updates covered by this guide
+
+| Update | Current behavior | Scope |
+| --- | --- | --- |
+| Top cards on leads | Lead the highest-value legal card, even without a 10 and regardless of trump-selection or vulnerable-suit preferences. | Python and browser AI; section 6. |
+| Top cards with a winning teammate | Play the highest-value legal card when the partner is currently winning; following suit and other legality requirements still apply. | Python and browser AI; sections 4 and 6. |
+| Game-table name | The heading, browser-tab title, table accessibility labels, and local launcher message use **Manillen**. | Browser presentation and `play_web.py`; sections 9–11. |
+| Show hint | Recommend a legal card and wait for the human to choose, suspending autoplay of the human hand while enabled. | Browser controls; section 10. |
+| Central trump display | Show the selected suit symbol/name, or Null, prominently above the played cards on the green table. | Browser presentation; section 10. |
+
+The top-card changes are strategy priorities, not new permissions to play an otherwise illegal card. The hint, name, and central trump display are browser features; they do not imply matching new desktop controls.
 
 ## Contents
 
@@ -288,6 +300,12 @@ The card chooser receives its own hand, the public trick, trump, the trump choos
 5. **Observed vulnerable suits:** within the remaining candidates, avoid suits previously trumped by opponents when an alternative exists.
 6. **Responding:** take the trick with the cheapest winning candidate, if one exists; otherwise discard the cheapest candidate.
 
+The top-card order is **10 → Ace → King → Queen → Jack → 9 → 8 → 7**. Rank breaks the zero-point tie between 9, 8, and 7. Among equal ranks, a non-trump is preferred; if the comparison is still tied, the first matching card in hand order is used. In Null, all suits are non-trump. This priority applies to the opening lead of every trick, not just the first trick of a deal.
+
+For example, a trump chooser holding a trump 7 and a non-trump Ace leads the Ace. A player holding a trump 10 and a non-trump 7 leads the 10 even when the opponents chose trump. When the partner is winning and following Clubs is mandatory, a hand containing Clubs 8, Clubs 9, and Spades 10 plays Clubs 9: the off-suit 10 is not legal. A top card here means the highest available legal rank/value, not a card proven unbeatable from previously played cards.
+
+Steps 3–6 apply only after the lead/partner and Null cases have returned, so these suit preferences govern responses to winning opponents in suit-trump deals. The cheap-win or cheap-discard strategy against those opponents remains in place.
+
 “Cheapest” is encoded with a tuple key: points first, whether the card is trump next, then strength. `min()` or `max()` with a short `lambda` function expresses these comparisons compactly. A **lambda** is simply a small unnamed function.
 
 These choices are understandable teaching heuristics. Feeding a currently winning partner does not guarantee the team will ultimately win: a later opponent can still beat the trick.
@@ -409,7 +427,7 @@ This is **inheritance**: `WebHandler` takes the standard handler's behavior and 
 5. The server binds to `127.0.0.1`, the loopback address for this computer.
 6. `partial(WebHandler, directory=str(directory))` tells each handler to serve that web directory. `str()` converts the path object to a string.
 7. If binding fails, an `OSError` is caught and a helpful error suggests another port.
-8. The actual server port is used to build the printed URL.
+8. The actual server port is used to build the printed URL, prefixed with `Manillen:`.
 9. Unless disabled, `webbrowser.open(url)` opens the page.
 10. `serve_forever()` keeps accepting requests until interrupted.
 11. Ctrl+C raises `KeyboardInterrupt`; the launcher handles it and `finally` closes the server.
@@ -484,6 +502,42 @@ The collection animation measures the table and winning seat positions. It gathe
 
 “Autoplay my hand” lets the same computer strategy handle player 0's trump, join/pass, and cards. It defaults to off. It respects the existing pause state and does not skip deck preparation or a required zero-point redeal. Human-card analytics hooks exclude cards played by this automatic mode.
 
+### Show hint and waiting for a decision
+
+The **Show hint** checkbox (`show-hint`) defaults to off. When checked, `render()` calls `chooseComputerCard()` for player 0 during a valid human card turn. It passes the human's hand, current trick, trump, dealer, and that team's observed trumped suits. The recommendation therefore follows section 6 and uses no hidden opponent hands.
+
+The suggested card appears in the `hint` live-status paragraph below the normal turn message. It is advice: the user can click any legal card. There is no decision timeout, and the Step button cannot bypass the waiting human turn. The hint is hidden during preparation, trump selection, joining, opponent turns, collection, previous-trick review, zero-point redeals, and after the deal ends. It clears after the human plays.
+
+The effective autoplay setting is:
+
+```javascript
+function autoplayHand() {
+  return $('autoplay-hand').checked && !$('show-hint').checked;
+}
+```
+
+While hints are enabled, the autoplay checkbox is disabled but retains its checked value. Trump selection and join/pass also become manual, although this feature only supplies card-play hints. Unchecking Show hint restores the retained autoplay preference. Both checkboxes reset to off when the page loads; they are not stored in `localStorage`.
+
+Changing Show hint calls `clearTimer()`, `render()`, and `schedule()`. This cancels a pending automatic human move and lets `waitingForHuman()` block further scheduling at that decision. It preserves the separate `running` flag and does not restart collection or shuffle animations. After a manual play, computer turns resume if running; an explicit Pause remains in effect. Manually clicked cards count as human participation for analytics even when the suspended autoplay checkbox remains checked.
+
+### Manillen name and the central trump indicator
+
+`web/index.html` names the game **Manillen** in the heading and initial tab title. `i18n.refresh()` also uses Manillen when rebuilding the tab title after a language change. Table accessibility labels and the launcher's printed message use the same name. Repository filenames, class names, storage keys, and the `/manille/` hosting path retain their existing identifiers.
+
+The `table-trump` element sits inside `.table-center`, above the trick label and played cards. Its gold border, dark-green background, and large gold text make the contract visible on the table as well as in the existing scorebar. The badge has a responsive font size and a maximum width to allow wrapping on smaller screens.
+
+`render()` derives this display directly from the current deal:
+
+| Deal state | Central display |
+| --- | --- |
+| Shuffle/preparation stage | Hidden. |
+| Dealt, trump not chosen | Translated “Choose trump” label. |
+| Suit trump selected | Suit symbol and translated suit name. |
+| Opponents joined the suit trump | Suit plus joined/double-points indication. |
+| Null selected | Translated Null/no-trump/double-points indication. |
+
+The indicator stays visible during play, collection, previous-trick review, and completed-deal display. It uses the existing `chooseTrumpTitle`, `trumpSuit`, and `nullTrump` translation keys and a polite live-status region. No separate trump state is stored in the display.
+
 ## 11. Translations, accessibility, and history
 
 `i18n` is a common abbreviation for internationalization. `web/i18n.mjs` supports Dutch, English, French, Simplified Chinese, and a Dutch-plus-English mode, which is the default.
@@ -491,6 +545,8 @@ The collection animation measures the table and winning seat positions. It gathe
 Locale files map stable keys to strings or formatting functions. A message can be represented as `{key, params}` rather than immediately fixed as an English sentence. For example, parameters can carry a player number, suit, or point count. Nested message descriptors allow a translated rule to appear inside another translated message.
 
 The translation helpers store message keys and parameters on DOM elements using `data-i18n-*` attributes. A language change re-translates existing elements, including history entries, without recreating the deal or resetting timers. Internal suit and rank identifiers remain English, so changing language does not change card identity or saved data.
+
+The Show hint label and advice are translated in all four dictionaries. `cardHint` receives a nested `cardName` descriptor, so the recommended card also changes language correctly. The central trump badge uses the same translated contract labels as the scorebar. Version query strings on the HTML assets and translation import chain help browsers load updated modules after these interface changes.
 
 French displays V/D/R/A for face-card abbreviations; the other supported modes use J/Q/K/A. Full names are available in tooltips and accessible labels. Bilingual labels can display Dutch and English on separate lines.
 
@@ -549,12 +605,14 @@ A **regression test** records an expected behavior so a later edit does not acci
 | `test_board_ui.py` | Real Tkinter buttons, clicks, timers, animations, review, redealing, names, and match endings. It skips when Tk/display support is unavailable. |
 | `test_web_parity.py` | Python-to-JavaScript comparisons for decisions, scoring, and shuffling. Skips when Node.js is unavailable. |
 | `web/engine.test.mjs` | JavaScript rules, strategies, deal and match behavior. |
-| `web/app.test.mjs` | Real app handlers using a small simulated DOM and controlled timers. |
+| `web/app.test.mjs` | Real app handlers using a small simulated DOM and controlled timers, including hint cancellation of pending autoplay, a legal recommendation, manual choice, and subsequent computer scheduling. |
 | `web/i18n.test.mjs` | Dictionaries, translated messages, and language-switching behavior. |
 | `web/analytics.test.mjs` | Tracking, persistence/expiry, opt-out, failures, and analytics presentation. |
 | `netlify/analytics-service.test.mjs` | Server validation, deduplication, concurrent events, date windows, expiration, and failures. |
 
 The parity suite creates 100 full deals and compares 3,200 card decisions. It also compares 610 score combinations and 100 shuffles using controlled random draws. Python sends JSON to a Node subprocess, then checks whether the JavaScript results match.
+
+The strategy regressions cover leads without 10s, rank and non-trump tie-breaking, precedence over trump-chooser/opponent/vulnerable-suit preferences, and legal play with a winning partner. Translation tests cover the Manillen tab title and nested hint messages. The central badge is exercised by app rendering, but these tests do not establish its visual position or readability in a real browser.
 
 Passing parity demonstrates agreement for those tested cases, not mathematical proof that every possible position is correct. Simulated DOM tests also cannot fully verify actual screen layout. The Tkinter UI tests exercise a real GUI, while browser visual changes still benefit from manual inspection on relevant screen sizes.
 
